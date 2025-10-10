@@ -73,6 +73,7 @@ def check_hf_auth() -> None:
     try:
         info = HfApi().whoami()
         username = info.get("name") or info.get("fullname") or "<unknown>"
+        print(username)
         print(f"Authenticated as   : {username}")
         print(f"Org memberships    : {info.get('orgs', [])}")
     except Exception as exc:  # pragma: no cover
