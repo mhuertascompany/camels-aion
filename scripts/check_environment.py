@@ -87,14 +87,16 @@ def check_aion(model_name: str, device: str, skip_codecs: bool) -> None:
     from huggingface_hub import hf_hub_download
     from aion import AION  # Lazy import to provide clearer error if missing
 
-    config_path = hf_hub_download(model_name, "config.json")
+    repo_id = model_name if "/" in model_name else f"polymathic-ai/{model_name}"
+
+    config_path = hf_hub_download(repo_id, "config.json")
     with open(config_path, "r", encoding="utf-8") as fh:
         config = json.load(fh)
 
-    model = AION.from_pretrained(model_name, config=config)
+    model = AION.from_pretrained(repo_id, config=config)
     model = model.to(device)
     model.eval()
-    print(f"Loaded `{model_name}` and moved to `{device}`.")
+    print(f"Loaded `{repo_id}` and moved to `{device}`.")
 
     if skip_codecs:
         return
