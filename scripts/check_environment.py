@@ -83,9 +83,15 @@ def check_hf_auth() -> None:
 
 def check_aion(model_name: str, device: str, skip_codecs: bool) -> None:
     print("\n== AION Model ==")
+    import json
+    from huggingface_hub import hf_hub_download
     from aion import AION  # Lazy import to provide clearer error if missing
 
-    model = AION.from_pretrained(model_name)
+    config_path = hf_hub_download(model_name, "config.json")
+    with open(config_path, "r", encoding="utf-8") as fh:
+        config = json.load(fh)
+
+    model = AION.from_pretrained(model_name, config=config)
     model = model.to(device)
     model.eval()
     print(f"Loaded `{model_name}` and moved to `{device}`.")
