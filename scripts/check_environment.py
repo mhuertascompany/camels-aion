@@ -1,0 +1,124 @@
+#!/usr/bin/env python3
+"""Environment sanity checks for CAMELS ↔︎ AION workflow on Jean-Zay."""
+
+from __future__ import annotations
+
+import argparse
+import sys
+
+import torch
+
+try:
+    from huggingface_hub import HfApi
+except ImportError:  # pragma: no cover - should not happen if deps installed
+    HfApi = None  # type: ignore
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--device",
+        type=str,
+        default="cuda",
+        help="Target device for model loading test.",
+    )
+    parser.add_argument(
+        "--model-name",
+        type=str,
+        default="aion-base",
+        help="Hugging Face model identifier to load.",
+    )
+    parser.add_argument(
+        "--skip-model",
+        action="store_true",
+        help="Skip loading the AION model (useful for lightweight checks).",
+    )
+    parser.add_argument(
+        "--skip-codecs",
+        action="store_true",
+        help="Skip codec/tokenization check.",
+    )
+    parser.add_argument(
+        "--skip-hf",
+        action="store_true",
+        help="Skip Hugging Face authentication check.",
+    )
+    return parser.parse_args()
+
+
+def check_torch(device: str) -> None:
+    print("== PyTorch ==")
+    print(f"torch version      : {torch.__version__}")
+    print(f"CUDA available     : {torch.cuda.is_available()}")
+    if torch.cuda.is_available():
+        print(f"CUDA device count  : {torch.cuda.device_count()}")
+        idx = torch.cuda.current_device()
+        print(f"Current CUDA device: {idx} ({torch.cuda.get_device_name(idx)})")
+    else:
+        print("CUDA not available in this environment.")
+
+    try:
+        test_tensor = torch.randn(4, 4, device=device)
+        print(f"Allocated tensor on '{device}' with shape {tuple(test_tensor.shape)}")
+        del test_tensor
+    except Exception as exc:  # pragma: no cover
+        print(f"[WARNING] Unable to allocate tensor on '{device}': {exc}")
+
+
+def check_hf_auth() -> None:
+    print("\n== Hugging Face ==")
+    if HfApi is None:
+        print("huggingface_hub not installed; run `pip install huggingface_hub`.")
+        return
+    try:
+        info = HfApi().whoami()
+        username = info.get("name") or info.get("fullname") or "<unknown>"
+        print(f"Authenticated as   : {username}")
+        print(f"Org memberships    : {info.get('orgs', [])}")
+    except Exception as exc:  # pragma: no cover
+        print("[WARNING] Hugging Face authentication failed.")
+        print("          Run `huggingface-cli login --token <HF_TOKEN>` and retry.")
+        print(f"          Details: {exc}")
+
+
+def check_aion(model_name: str, device: str, skip_codecs: bool) -> None:
+    print("\n== AION Model ==")
+    from aion import AION  # Lazy import to provide clearer error if missing
+
+    model = AION.from_pretrained(model_name)
+    model = model.to(device)
+    model.eval()
+    print(f"Loaded `{model_name}` and moved to `{device}`.")
+
+    if skip_codecs:
+        return
+
+    from aion.codecs import CodecManager
+    from aion.modalities import LegacySurveyImage
+    from camels_aion.config import CAMELS_FIELDS
+
+    codec_manager = CodecManager(device="cpu")
+    flux = torch.zeros(1, len(CAMELS_FIELDS), 128, 128, dtype=torch.float32)
+    image = LegacySurveyImage(flux=flux, bands=list(CAMELS_FIELDS))
+    tokens = codec_manager.encode(image)
+    tokens = {key: tensor.to(device) for key, tensor in tokens.items()}
+    print("Encoded synthetic CAMELS 4-channel image:")
+    for key, value in tokens.items():
+        print(f"  - {key}: shape={tuple(value.shape)}, dtype={value.dtype}")
+
+    with torch.no_grad():
+        embeddings = model.encode(tokens, num_encoder_tokens=10)
+    print(f"Model produced embeddings with shape {tuple(embeddings.shape)}.")
+
+
+def main() -> None:
+    args = parse_args()
+    check_torch(args.device)
+    if not args.skip_hf:
+        check_hf_auth()
+    if not args.skip_model:
+        check_aion(args.model_name, args.device, args.skip_codecs)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

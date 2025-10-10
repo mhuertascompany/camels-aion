@@ -1,1 +1,129 @@
-testing AION on CAMELS data
+# CAMELS ↔︎ AION Pipeline
+
+This repository contains scripts to encode CAMELS 2D maps with the Polymathic AION model and train lightweight regressors that map AION embeddings to cosmological and astrophysical parameters.
+
+## Prerequisites
+
+- Access to the CAMELS 2D map archive mirroring the official directory layout (e.g. `/lustre/fsmisc/dataset/CAMELS_Multifield_Dataset/2D_maps/data`).
+- A Jean-Zay (or equivalent) environment with Python ≥ 3.10, PyTorch + CUDA, and the `polymathic-aion[torch]` package installed.
+- A valid Hugging Face token with access to the gated `polymathic-ai/aion-base` checkpoint (run `huggingface-cli login` beforehand).
+
+Set the base dataset location globally via:
+
+```bash
+export CAMELS_BASE_PATH=/lustre/fsmisc/dataset/CAMELS_Multifield_Dataset/2D_maps/data
+```
+
+## Jean-Zay Environment Setup
+
+The outline below assumes a typical Jean-Zay interactive session (e.g. `srun --pty bash` on a GPU node). Adjust module names if your project uses different versions.
+
+1. **Load base modules**
+   ```bash
+   module purge
+   module load python/3.10 cuda/12.1
+   module load gcc/11.3  # only if your project requires a specific toolchain
+   ```
+
+2. **Create and activate a virtual environment**
+   ```bash
+   python -m venv $WORK/venvs/camels-aion
+   source $WORK/venvs/camels-aion/bin/activate
+   python -m pip install --upgrade pip wheel setuptools
+   ```
+
+3. **Install dependencies**
+   ```bash
+   pip install torch --index-url https://download.pytorch.org/whl/cu121  # pick the CUDA build matching the loaded module
+   pip install polymathic-aion[torch] huggingface_hub
+   ```
+   If your project already ships a compatible PyTorch module, you can skip the explicit `pip install torch` line and rely on the module-provided wheel.
+
+4. **Authenticate with Hugging Face (once per environment)**
+   ```bash
+   huggingface-cli login --token <HF_TOKEN>
+   ```
+   Consider setting `HF_HOME` to a project-specific directory on Lustre to avoid repeated downloads:
+   ```bash
+   export HF_HOME=$WORK/.cache/huggingface
+   ```
+
+5. **Quick sanity check**
+   Run the environment test script to verify PyTorch, HF credentials, codecs, and model loading:
+   ```bash
+   python scripts/check_environment.py --device cuda
+   ```
+   Use `--skip-model` or `--skip-codecs` for a lightweight check (e.g. on a login node without GPU access).
+
+## 1. Inspect IllustrisTNG maps
+
+```bash
+python scripts/audit_illustris_maps.py
+```
+
+This prints the total sample count, image shape, and quick statistics for the four fields we currently stack (`Mstar`, `Mgas`, `T`, `Z`).
+
+## 2. Encode CAMELS maps with AION
+
+```bash
+python scripts/encode_illustris_embeddings.py \
+  --suite IllustrisTNG \
+  --set LH \
+  --redshift 0.0 \
+  --output-dir /path/to/illustris_embeddings \
+  --batch-size 32 \
+  --device cuda \
+  --num-encoder-tokens 600
+```
+
+Key behaviour:
+
+- Maps are stacked into a 4-channel image (channel order `Mstar`, `Mgas`, `T`, `Z`) and encoded with the LegacySurvey image codec.
+- Embeddings + ground-truth labels are saved in shard files (`*.pt`) alongside a manifest JSON.
+- Use `--start-index` / `--end-index` to process subsets, and `--fp32` to disable mixed precision if needed.
+
+Run the same command with `--suite SIMBA` to prepare transfer-evaluation embeddings.
+
+## 3. Train a regression head on IllustrisTNG embeddings
+
+```bash
+python scripts/train_parameter_head.py \
+  --manifest /path/to/illustris_embeddings/IllustrisTNG_LH_z0p00_manifest.json \
+  --shard-dir /path/to/illustris_embeddings \
+  --output-dir outputs/illustris_head \
+  --hidden-dim 1024 \
+  --epochs 50 \
+  --batch-size 512 \
+  --lr 3e-4 \
+  --device cuda
+```
+
+- Uses a 70/15/15 train/val/test split (configurable).
+- Supports either a linear head (`--hidden-dim` omitted) or a 2-layer MLP.
+- Saves the best checkpoint (`best_model.pt`) and a JSON summary with per-parameter RMSE/MAE.
+
+## 4. Evaluate zero-shot transfer on SIMBA embeddings
+
+```bash
+python scripts/evaluate_head_on_simba.py \
+  --model outputs/illustris_head/best_model.pt \
+  --manifest /path/to/simba_embeddings/SIMBA_LH_z0p00_manifest.json \
+  --shard-dir /path/to/simba_embeddings \
+  --output outputs/simba_transfer_metrics.json \
+  --batch-size 512 \
+  --device cuda
+```
+
+The resulting JSON contains per-parameter MSE / MAE on the SIMBA suite so we can compare against the Illustris-trained performance.
+
+## Utilities & Modules
+
+- `camels_aion.config`: Paths / defaults centralised here.
+- `camels_aion.data`: Dataset loader for CAMELS maps plus convenience statistics.
+- `camels_aion.encoding`: Thin wrapper around `AION` + `CodecManager`, handling batching and shard writing.
+
+## Next Steps
+
+- Perform normalization experiments (per-field scaling vs. raw values).
+- Extend the codec layer with CAMELS-specific quantizers if LegacySurvey assumptions prove suboptimal.
+- Add logging/notebooks to visualise embeddings and regression residuals across cosmological parameter space.
