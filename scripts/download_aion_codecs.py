@@ -4,8 +4,8 @@
 from __future__ import annotations
 
 import argparse
-import json
 import inspect
+import json
 from pathlib import Path
 
 import torch
@@ -23,56 +23,66 @@ def parse_args() -> argparse.Namespace:
         "--repo",
         type=str,
         default=HF_REPO_ID,
-        help="Hugging Face repo id or local path containing codec weights (default: polymathic-ai/aion-base)",
+        help="Hugging Face repo id or local snapshot path containing codec weights.",
     )
     parser.add_argument(
         "--codec-device",
         type=str,
         default="cpu",
-        help="Device on which to instantiate codecs during priming.",
+        help="Device to instantiate the codec on while priming.",
     )
     parser.add_argument(
         "--image-size",
         type=int,
         default=128,
-        help="Side length (pixels) of the dummy image used for priming.",
+        help="Edge length (pixels) of a dummy map used to run the codec once.",
     )
     return parser.parse_args()
 
 
-def _load_codec(repo: str | Path, codec_device: str):
+def load_config(repo: str | Path) -> dict[str, float | int | list[int]]:
+    if Path(repo).exists():
+        config_path = Path(repo) / "codecs" / LegacySurveyImage.name / "config.json"
+        if not config_path.exists():
+            raise FileNotFoundError(
+                f"Could not find codec config at {config_path}. "
+                "Ensure the local snapshot contains the `codecs/` folder."
+            )
+    else:
+        config_path = Path(
+            hf_hub_download(repo, f"codecs/{LegacySurveyImage.name}/config.json")
+        )
+    with open(config_path, "r", encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+def instantiate_codec(
+    repo: str | Path, device: str, config: dict[str, object]
+):
     codec_cls = MODALITY_CODEC_MAPPING[LegacySurveyImage]
 
-    if Path(repo).exists():
-        repo_path = Path(repo)
-        config_path = repo_path / "codecs" / LegacySurveyImage.name / "config.json"
-        if not config_path.exists():
-            raise FileNotFoundError(f"Could not find codec config at {config_path}")
-    else:
-        config_path = hf_hub_download(repo, f"codecs/{LegacySurveyImage.name}/config.json")
-        repo_path = repo
+    init_params = inspect.signature(codec_cls.__init__).parameters
+    init_kwargs = {
+        name: config[name]
+        for name in init_params
+        if name != "self" and name in config
+    }
 
-    with open(config_path, "r", encoding="utf-8") as fh:
-        config = json.load(fh)
-
-    import inspect
-
-    init_params = set(inspect.signature(codec_cls.__init__).parameters.keys())
-    init_params.discard("self")
-    filtered_config = {k: v for k, v in config.items() if k in init_params}
-
+    repo_ref = str(repo) if Path(repo).exists() else repo
     codec = codec_cls.from_pretrained(
-        repo_path, modality=LegacySurveyImage, **filtered_config
+        repo_ref,
+        modality=LegacySurveyImage,
+        **init_kwargs,
     )
-    codec = codec.to(codec_device)
-    return codec
+    return codec.to(device).eval()
 
 
 def main() -> None:
     args = parse_args()
 
     print(f"== Priming LegacySurvey image codec from {args.repo} ==")
-    codec = _load_codec(args.repo, args.codec_device)
+    config = load_config(args.repo)
+    codec = instantiate_codec(args.repo, args.codec_device, config)
 
     flux = torch.zeros(
         1,
@@ -86,10 +96,9 @@ def main() -> None:
 
     with torch.no_grad():
         tokens = codec.encode(image)
+    print(f"  token tensor shape: {tuple(tokens.shape)} dtype: {tokens.dtype}")
 
-    print(f"  tokens shape: {tuple(tokens.shape)}, dtype={tokens.dtype}")
-
-    print("Codec weights downloaded and cached (see HF_HOME or local repo directory).")
+    print("Codec weights are now cached under HF_HOME/local snapshot.")
 
 
 if __name__ == "__main__":
