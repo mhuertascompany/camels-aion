@@ -20,6 +20,16 @@ from .config import (
 )
 
 
+def _resolve_file(candidates: list[Path]) -> Path:
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    raise FileNotFoundError(
+        "None of the expected CAMELS paths exist. Checked:\n"
+        + "\n".join(str(candidate) for candidate in candidates)
+    )
+
+
 def build_map_path(
     field: str,
     suite: str = CAMELS_SUITE,
@@ -32,7 +42,14 @@ def build_map_path(
     filename = MAP_FILENAME_TEMPLATE.format(
         field=field, suite=suite, set=set_name, redshift=redshift
     )
-    return base / suite / set_name / "z=0.00" / filename
+    candidates = [
+        base / suite / set_name / f"z={redshift:0.2f}" / filename,
+        base / suite / set_name / filename,
+        base / suite / f"z={redshift:0.2f}" / filename,
+        base / suite / filename,
+        base / filename,
+    ]
+    return _resolve_file(candidates)
 
 
 def build_param_path(
@@ -43,7 +60,12 @@ def build_param_path(
     """Return full path to CAMELS parameter table."""
     base = Path(base_path) if base_path else CAMELS_BASE_PATH
     filename = PARAM_FILENAME_TEMPLATE.format(set=set_name, suite=suite)
-    return base / suite / set_name / filename
+    candidates = [
+        base / suite / set_name / filename,
+        base / suite / filename,
+        base / filename,
+    ]
+    return _resolve_file(candidates)
 
 
 def load_map_file(
