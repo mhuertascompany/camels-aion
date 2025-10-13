@@ -49,7 +49,12 @@ def compute_metrics(pred: torch.Tensor, target: torch.Tensor) -> dict[str, list[
     }
 
 
-def evaluate(model: nn.Module, loader: DataLoader, device: torch.device) -> dict[str, list[float]]:
+def evaluate(
+    model: nn.Module,
+    loader: DataLoader,
+    device: torch.device,
+    return_outputs: bool = False,
+) -> dict[str, list[float]] | tuple[dict[str, list[float]], torch.Tensor, torch.Tensor]:
     model.eval()
     preds, targets = [], []
     with torch.no_grad():
@@ -60,7 +65,10 @@ def evaluate(model: nn.Module, loader: DataLoader, device: torch.device) -> dict
             targets.append(batch_labels)
     predictions = torch.cat(preds, dim=0)
     target = torch.cat(targets, dim=0)
-    return compute_metrics(predictions, target)
+    metrics = compute_metrics(predictions, target)
+    if return_outputs:
+        return metrics, predictions, target
+    return metrics
 
 
 def parse_args() -> argparse.Namespace:
@@ -172,10 +180,20 @@ def main() -> None:
     if best_state is not None:
         torch.save(best_state, args.output_dir / "best_model.pt")
 
-    test_metrics = evaluate(model, test_loader, device)
+    test_metrics, test_predictions, test_targets = evaluate(model, test_loader, device, return_outputs=True)
     summary = {name: {"mse": mse, "mae": mae} for name, mse, mae in zip(PARAMETER_NAMES, test_metrics["mse"], test_metrics["mae"])}
     with open(args.output_dir / "metrics.json", "w", encoding="utf-8") as fh:
         json.dump({"test": summary, "metadata": metadata}, fh, indent=2)
+
+    # Save test predictions/targets for downstream plotting
+    import pandas as pd
+
+    df = pd.DataFrame(
+        torch.cat([test_targets.cpu(), test_predictions.cpu()], dim=1).numpy(),
+        columns=[f"target_{name}" for name in PARAMETER_NAMES]
+        + [f"pred_{name}" for name in PARAMETER_NAMES],
+    )
+    df.to_csv(args.output_dir / "test_predictions.csv", index=False)
 
 
 if __name__ == "__main__":

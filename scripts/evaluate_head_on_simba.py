@@ -45,12 +45,24 @@ def main() -> None:
     dataset = TensorDataset(embeddings, labels)
     loader = DataLoader(dataset, batch_size=args.batch_size)
 
-    metrics = evaluate(model, loader, torch.device(args.device))
+    metrics, predictions, targets = evaluate(
+        model, loader, torch.device(args.device), return_outputs=True
+    )
     summary = {name: {"mse": mse, "mae": mae} for name, mse, mae in zip(PARAMETER_NAMES, metrics["mse"], metrics["mae"])}
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with open(args.output, "w", encoding="utf-8") as fh:
         json.dump({"simba": summary}, fh, indent=2)
+
+    if tf := args.output.with_suffix(".csv"):
+        import pandas as pd
+
+        df = pd.DataFrame(
+            torch.cat([targets.cpu(), predictions.cpu()], dim=1).numpy(),
+            columns=[f"target_{name}" for name in PARAMETER_NAMES]
+            + [f"pred_{name}" for name in PARAMETER_NAMES],
+        )
+        df.to_csv(tf, index=False)
 
 
 if __name__ == "__main__":
