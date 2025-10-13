@@ -93,18 +93,20 @@ def check_aion(model_name: str, model_dir: Path | None, device: str, skip_codecs
     print("\n== AION Model ==")
     import json
     from huggingface_hub import hf_hub_download
-from aion import AION  # Lazy import to provide clearer error if missing
+    from aion import AION  # Lazy import to provide clearer error if missing
 
     if model_dir is not None:
         model = AION.from_pretrained(model_dir)
         repo_id = str(model_dir)
         config = None
+        codec_repo: str | Path = model_dir
     else:
         repo_id = model_name if "/" in model_name else f"polymathic-ai/{model_name}"
         config_path = hf_hub_download(repo_id, "config.json")
         with open(config_path, "r", encoding="utf-8") as fh:
             config = json.load(fh)
         model = AION.from_pretrained(repo_id, config=config)
+        codec_repo = repo_id
     model = model.to(device)
     model.eval()
     print(f"Loaded `{repo_id}` and moved to `{device}`.")
@@ -116,7 +118,6 @@ from aion import AION  # Lazy import to provide clearer error if missing
     from camels_aion.config import CAMELS_CODEC_BANDS
     from camels_aion.codec_manager import LocalCodecManager
 
-    codec_repo = repo_id
     codec_manager = LocalCodecManager(repo=codec_repo, device="cpu")
     flux = torch.zeros(1, len(CAMELS_CODEC_BANDS), 128, 128, dtype=torch.float32)
     image = LegacySurveyImage(flux=flux, bands=list(CAMELS_CODEC_BANDS))
