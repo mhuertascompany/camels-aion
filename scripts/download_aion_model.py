@@ -31,11 +31,6 @@ def parse_args() -> argparse.Namespace:
         default=default_dest,
         help="Destination directory where the snapshot will be stored.",
     )
-    parser.add_argument(
-        "--allow-unsafe-protocols",
-        action="store_true",
-        help="Forward flag to snapshot_download for sites with MITM proxies.",
-    )
     return parser.parse_args()
 
 
@@ -48,7 +43,6 @@ def main() -> None:
         revision=args.revision,
         local_dir=args.dest,
         local_dir_use_symlinks=False,
-        allow_unsafe_protocols=args.allow_unsafe_protocols,
     )
     print("Done.")
 
