@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import inspect
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -49,8 +50,13 @@ class LocalCodecManager(CodecManager):
             config = self._load_config(Path(config_path))
             repo_ref = self.repo
 
+        # Filter config keys to match codec __init__ signature
+        init_params = set(inspect.signature(codec_class.__init__).parameters.keys())
+        init_params.discard("self")
+        filtered_config = {k: v for k, v in config.items() if k in init_params}
+
         codec = codec_class.from_pretrained(
-            repo_ref, modality=modality_type, config=config
+            repo_ref, modality=modality_type, **filtered_config
         )
         codec = codec.eval()
         return codec

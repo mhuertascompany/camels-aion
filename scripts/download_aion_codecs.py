@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import inspect
 from pathlib import Path
 
 import torch
@@ -54,7 +55,15 @@ def _load_codec(repo: str | Path, codec_device: str):
     with open(config_path, "r", encoding="utf-8") as fh:
         config = json.load(fh)
 
-    codec = codec_cls.from_pretrained(repo_path, modality=LegacySurveyImage, config=config)
+    import inspect
+
+    init_params = set(inspect.signature(codec_cls.__init__).parameters.keys())
+    init_params.discard("self")
+    filtered_config = {k: v for k, v in config.items() if k in init_params}
+
+    codec = codec_cls.from_pretrained(
+        repo_path, modality=LegacySurveyImage, **filtered_config
+    )
     codec = codec.to(codec_device)
     return codec
 
