@@ -20,8 +20,11 @@ def load_embeddings(shard_paths: Iterable[Path]) -> tuple[torch.Tensor, torch.Te
     labels = []
     for shard_path in shard_paths:
         payload = torch.load(shard_path, weights_only=False)
-        embeddings.append(payload["embeddings"])
-        labels.append(payload["labels"])
+        emb = payload["embeddings"].float()
+        if emb.ndim == 3:
+            emb = emb.mean(dim=1)
+        embeddings.append(emb)
+        labels.append(payload["labels"].float())
     return torch.cat(embeddings, dim=0), torch.cat(labels, dim=0)
 
 

@@ -117,6 +117,7 @@ python scripts/train_parameter_head.py \
 - Uses a 70/15/15 train/val/test split (configurable).
 - Supports either a linear head (`--hidden-dim` omitted) or a 2-layer MLP.
 - Saves the best checkpoint (`best_model.pt`) and a JSON summary with per-parameter RMSE/MAE.
+- The training script automatically averages AION encodings over the token dimension before fitting the regression head.
 
 ## 4. Evaluate zero-shot transfer on SIMBA embeddings
 
