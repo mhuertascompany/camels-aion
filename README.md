@@ -48,12 +48,18 @@ The outline below assumes a typical Jean-Zay interactive session (e.g. `srun --p
    export HF_HOME=$WORK/.cache/huggingface
    ```
 
-5. **Quick sanity check**
+5. **Mirror the AION model locally (required on compute nodes without network)**
+   ```bash
+   python scripts/download_aion_model.py --dest $WORK/models/aion
+   ```
+   This downloads the `polymathic-ai/aion-base` snapshot once (run from a login node with internet access).
+
+6. **Quick sanity check**
    Run the environment test script to verify PyTorch, HF credentials, codecs, and model loading:
    ```bash
-   python scripts/check_environment.py --device cuda
+   python scripts/check_environment.py --device cuda --model-dir $WORK/models/aion
    ```
-   Use `--skip-model` or `--skip-codecs` for a lightweight check (e.g. on a login node without GPU access).
+   Use `--skip-model` or `--skip-codecs` for a lightweight check (e.g. on a login node without GPU access) or when codecs have not been mirrored locally yet.
 
 ## 1. Inspect IllustrisTNG maps
 

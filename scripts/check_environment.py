@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
 
 import torch
 
@@ -27,6 +28,12 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default="aion-base",
         help="Hugging Face model identifier to load.",
+    )
+    parser.add_argument(
+        "--model-dir",
+        type=Path,
+        default=None,
+        help="Load model weights from a local directory (avoids HF download on compute nodes).",
     )
     parser.add_argument(
         "--skip-model",
@@ -82,19 +89,22 @@ def check_hf_auth() -> None:
         print(f"          Details: {exc}")
 
 
-def check_aion(model_name: str, device: str, skip_codecs: bool) -> None:
+def check_aion(model_name: str, model_dir: Path | None, device: str, skip_codecs: bool) -> None:
     print("\n== AION Model ==")
     import json
     from huggingface_hub import hf_hub_download
     from aion import AION  # Lazy import to provide clearer error if missing
 
-    repo_id = model_name if "/" in model_name else f"polymathic-ai/{model_name}"
-
-    config_path = hf_hub_download(repo_id, "config.json")
-    with open(config_path, "r", encoding="utf-8") as fh:
-        config = json.load(fh)
-
-    model = AION.from_pretrained(repo_id, config=config)
+    if model_dir is not None:
+        model = AION.from_pretrained(model_dir)
+        repo_id = str(model_dir)
+        config = None
+    else:
+        repo_id = model_name if "/" in model_name else f"polymathic-ai/{model_name}"
+        config_path = hf_hub_download(repo_id, "config.json")
+        with open(config_path, "r", encoding="utf-8") as fh:
+            config = json.load(fh)
+        model = AION.from_pretrained(repo_id, config=config)
     model = model.to(device)
     model.eval()
     print(f"Loaded `{repo_id}` and moved to `{device}`.")
@@ -126,7 +136,7 @@ def main() -> None:
     if not args.skip_hf:
         check_hf_auth()
     if not args.skip_model:
-        check_aion(args.model_name, args.device, args.skip_codecs)
+        check_aion(args.model_name, args.model_dir, args.device, args.skip_codecs)
 
 
 if __name__ == "__main__":
