@@ -55,12 +55,17 @@ The outline below assumes a typical Jean-Zay interactive session (e.g. `srun --p
    ```
    This downloads the `polymathic-ai/aion-base` snapshot once (run from a login node with internet access).
 
-6. **Quick sanity check**
-   Run the environment test script to verify PyTorch, HF credentials, codecs, and model loading:
+6. **Download codec/tokenizer weights**
+   ```bash
+   python scripts/download_aion_codecs.py
+   ```
+   The codec weights are cached under `$HF_HOME` (or the default Hugging Face cache). Make sure that directory is accessible from compute nodes.
+
+7. **Quick sanity check**
+   Run the environment test script to verify PyTorch and the local AION snapshot:
    ```bash
    export PYTHONPATH=$(pwd):${PYTHONPATH}
-   export PYTHONPATH=$(pwd):${PYTHONPATH}
-   python scripts/check_environment.py --device cuda --model-dir $WORK/models/aion
+   python scripts/check_environment.py --device cuda --model-dir $WORK/models/aion --skip-codecs
    ```
    Use `--skip-model` or `--skip-codecs` for a lightweight check (e.g. on a login node without GPU access) or when codecs have not been mirrored locally yet.
 

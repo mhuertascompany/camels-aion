@@ -26,6 +26,7 @@ class EncoderConfig:
     batch_size: int = 32
     num_encoder_tokens: int = 600
     fp16: bool = True
+    codec_device: str = "cpu"
 
 
 class EmbeddingWriter:
@@ -71,40 +72,46 @@ class CamelsAionEncoder:
         model: Optional[AION] = None,
         codec_manager: Optional[CodecManager] = None,
         config: EncoderConfig | None = None,
+        model_path: str | Path | None = None,
+        model_name: str = "polymathic-ai/aion-base",
     ) -> None:
         self.config = config or EncoderConfig()
         self.device = torch.device(self.config.device)
-        self.model = model or AION.from_pretrained("aion-base")
+        if model is not None:
+            self.model = model
+        else:
+            if model_path is not None:
+                self.model = AION.from_pretrained(str(model_path))
+            else:
+                resolved_name = model_name if "/" in model_name else f"polymathic-ai/{model_name}"
+                self.model = AION.from_pretrained(resolved_name)
         self.model = self.model.to(self.device)
-        self.codec_manager = codec_manager or CodecManager(device=self.device)
+        codec_device = torch.device(self.config.codec_device)
+        self.codec_manager = codec_manager or CodecManager(device=codec_device)
+        self.codec_device = codec_device
         self.fields = CAMELS_FIELDS
 
     def encode_sample(self, sample: CamelsMapSample) -> torch.Tensor:
         """Encode a batch of CAMELS maps into AION embeddings."""
-        flux = torch.from_numpy(sample.images).to(self.device, dtype=torch.float32)
-        if self.config.fp16 and self.device.type == "cuda":
-            flux = flux.half()
+        flux = torch.from_numpy(sample.images).to(self.codec_device, dtype=torch.float32)
 
-        modality = LegacySurveyImage(
-            flux=flux,
-            bands=list(self.fields),
-        )
+        modality = LegacySurveyImage(flux=flux, bands=list(self.fields))
         tokens = self.codec_manager.encode(modality)
 
         tokens = {key: tensor.to(self.device) for key, tensor in tokens.items()}
 
-        if self.config.fp16 and self.device.type == "cuda":
-            autocast_ctx = torch.cuda.amp.autocast
-            autocast_kwargs = {"enabled": True, "dtype": torch.float16}
-        else:
-            autocast_ctx = torch.autocast
-            autocast_kwargs = {"device_type": self.device.type, "enabled": False}
+        use_amp = self.config.fp16 and self.device.type == "cuda"
 
-        with autocast_ctx(**autocast_kwargs):
-            embeddings = self.model.encode(
-                tokens,
-                num_encoder_tokens=self.config.num_encoder_tokens,
-            )
+        with torch.no_grad():
+            if use_amp:
+                with torch.cuda.amp.autocast(dtype=torch.float16):
+                    embeddings = self.model.encode(
+                        tokens, num_encoder_tokens=self.config.num_encoder_tokens
+                    )
+            else:
+                embeddings = self.model.encode(
+                    tokens, num_encoder_tokens=self.config.num_encoder_tokens
+                )
         return embeddings.detach()
 
     def encode_dataset(

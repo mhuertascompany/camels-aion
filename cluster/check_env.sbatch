@@ -35,4 +35,4 @@ MODEL_DIR="${AION_MODEL_DIR:-$WORK/models/aion}"
 
 # Run environment check using local snapshot (skip HF auth)
 mkdir -p logs
-srun python scripts/check_environment.py --device cuda --model-dir "$MODEL_DIR" --skip-hf | tee logs/check_environment.log
+srun python scripts/check_environment.py --device cuda --model-dir "$MODEL_DIR" --skip-hf --skip-codecs | tee logs/check_environment.log
