@@ -25,12 +25,13 @@ The outline below assumes a typical Jean-Zay interactive session (e.g. `srun --p
    module load gcc/11.3  # only if your project requires a specific toolchain
    ```
 
-2. **Create and activate a virtual environment**
+2. **Create and activate a virtual environment** *(recommended)*
    ```bash
    python -m venv $WORK/venvs/camels-aion
    source $WORK/venvs/camels-aion/bin/activate
    python -m pip install --upgrade pip wheel setuptools
    ```
+   If you prefer to rely solely on Jean-Zay modules, you may skip this step. In that case, remember to install the Python packages in your user site (e.g. `pip install --user polymathic-aion huggingface_hub`) and ensure `$PYTHONPATH` includes this repository when running scripts.
 
 3. **Install dependencies**
    ```bash
@@ -57,6 +58,8 @@ The outline below assumes a typical Jean-Zay interactive session (e.g. `srun --p
 6. **Quick sanity check**
    Run the environment test script to verify PyTorch, HF credentials, codecs, and model loading:
    ```bash
+   export PYTHONPATH=$(pwd):${PYTHONPATH}
+   export PYTHONPATH=$(pwd):${PYTHONPATH}
    python scripts/check_environment.py --device cuda --model-dir $WORK/models/aion
    ```
    Use `--skip-model` or `--skip-codecs` for a lightweight check (e.g. on a login node without GPU access) or when codecs have not been mirrored locally yet.

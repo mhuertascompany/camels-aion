@@ -22,6 +22,14 @@ set -euo pipefail
 module purge
 module load pytorch-gpu/py3/2.2.0
 
+# Activate virtual environment if AION_VENV is defined
+if [[ -n "${AION_VENV:-}" && -f "${AION_VENV}/bin/activate" ]]; then
+  source "${AION_VENV}/bin/activate"
+fi
+
+# Ensure local package imports work
+export PYTHONPATH="$PWD:${PYTHONPATH:-}"
+
 # Determine local model directory
 MODEL_DIR="${AION_MODEL_DIR:-$WORK/models/aion}"
 
