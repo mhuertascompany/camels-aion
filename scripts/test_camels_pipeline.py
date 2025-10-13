@@ -21,7 +21,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--redshift", type=float, default=0.0, help="Redshift slice to load.")
     parser.add_argument("--sample-count", type=int, default=8, help="Number of maps to load and encode for the smoke test.")
     parser.add_argument("--batch-size", type=int, default=8, help="Batch size for encoding.")
-    parser.add_argument("--device", type=str, default="cuda", help="Device for AION model.")
+    parser.add_argument("--device", type=str, default="auto", help="Device for AION model (cuda/cpu/auto).")
     parser.add_argument("--codec-device", type=str, default="cpu", help="Device on which codecs operate.")
     parser.add_argument("--num-encoder-tokens", type=int, default=600, help="Maximum encoder tokens for AION.")
     parser.add_argument("--model-dir", type=Path, default=None, help="Path to a local AION snapshot (offline mode).")

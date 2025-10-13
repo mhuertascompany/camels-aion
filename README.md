@@ -96,6 +96,7 @@ Key behaviour:
 - During encoding we reuse the codec's DES band names (`DES-G/R/I/Z`) as placeholders for the four CAMELS channels so that the pretrained tokenizer can be applied offline.
 - Embeddings + ground-truth labels are saved in shard files (`*.pt`) alongside a manifest JSON.
 - Use `--start-index` / `--end-index` to process subsets, and `--fp32` to disable mixed precision if needed.
+- `--device` accepts `cuda`, `cpu`, or `auto` (default). Use `auto` when running on login nodes without GPUs; specify `cuda` explicitly for compute-node jobs.
 
 Run the same command with `--suite SIMBA` to prepare transfer-evaluation embeddings.
 

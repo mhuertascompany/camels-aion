@@ -37,7 +37,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--set", dest="set_name", type=str, default="LH", help="Simulation set (CV, LH, 1P, ...).")
     parser.add_argument("--redshift", type=float, default=0.0, help="Redshift slice to load.")
     parser.add_argument("--batch-size", type=int, default=32)
-    parser.add_argument("--device", type=str, default="cuda")
+    parser.add_argument("--device", type=str, default="auto")
     parser.add_argument("--codec-device", type=str, default="cpu")
     parser.add_argument(
         "--num-encoder-tokens",

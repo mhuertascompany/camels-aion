@@ -22,7 +22,7 @@ from .codec_manager import LocalCodecManager
 class EncoderConfig:
     """Configuration block for the encoder."""
 
-    device: str = "cuda"
+    device: str = "auto"
     batch_size: int = 32
     num_encoder_tokens: int = 600
     fp16: bool = True
@@ -67,6 +67,16 @@ class EmbeddingWriter:
 class CamelsAionEncoder:
     """Utility for encoding CAMELS maps using AION."""
 
+    @staticmethod
+    def _resolve_device(spec: str | torch.device) -> torch.device:
+        if isinstance(spec, torch.device):
+            return spec
+        if isinstance(spec, str):
+            if spec.lower() == "auto":
+                return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            return torch.device(spec)
+        raise ValueError(f"Unsupported device specification: {spec}")
+
     def __init__(
         self,
         model: Optional[AION] = None,
@@ -77,7 +87,7 @@ class CamelsAionEncoder:
         codec_repo: str | Path | None = None,
     ) -> None:
         self.config = config or EncoderConfig()
-        self.device = torch.device(self.config.device)
+        self.device = self._resolve_device(self.config.device)
         if model is not None:
             self.model = model
         else:
@@ -86,10 +96,20 @@ class CamelsAionEncoder:
             else:
                 resolved_name = model_name if "/" in model_name else f"polymathic-ai/{model_name}"
                 self.model = AION.from_pretrained(resolved_name)
-        self.model = self.model.to(self.device)
-        codec_device = torch.device(self.config.codec_device)
+        try:
+            self.model = self.model.to(self.device)
+        except RuntimeError as exc:
+            if self.device.type == "cuda" and "cuda" in str(exc).lower():
+                print("[INFO] CUDA unavailable, falling back to CPU for AION model.")
+                self.device = torch.device("cpu")
+                self.model = self.model.to(self.device)
+            else:
+                raise
+        codec_device = self._resolve_device(self.config.codec_device)
         if codec_repo is not None:
             repo_ref = codec_repo
+        elif model_path is not None:
+            repo_ref = model_path
         else:
             repo_ref = model_name
         if isinstance(repo_ref, str) and "/" not in repo_ref and not Path(repo_ref).exists():
