@@ -26,6 +26,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--num-encoder-tokens", type=int, default=600, help="Maximum encoder tokens for AION.")
     parser.add_argument("--model-dir", type=Path, default=None, help="Path to a local AION snapshot (offline mode).")
     parser.add_argument("--model-name", type=str, default="polymathic-ai/aion-base", help="Hugging Face repo or identifier when downloading.")
+    parser.add_argument("--codec-repo", type=str, default=None, help="Codec repo id or local path (defaults to model path/repo).")
     parser.add_argument("--fp32", action="store_true", help="Disable mixed precision during encoding.")
     parser.add_argument("--skip-encoder", action="store_true", help="Only load CAMELS maps without running AION.")
     parser.add_argument("--stats-samples", type=int, default=512, help="Number of samples for channel statistics.")
@@ -82,6 +83,9 @@ def main() -> None:
         config=encoder_config,
         model_path=args.model_dir,
         model_name=args.model_name,
+        codec_repo=args.codec_repo
+        if args.codec_repo is not None
+        else (args.model_dir if args.model_dir is not None else args.model_name),
     )
 
     embeddings = encoder.encode_sample(sample)

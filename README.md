@@ -57,9 +57,9 @@ The outline below assumes a typical Jean-Zay interactive session (e.g. `srun --p
 
 6. **Download codec/tokenizer weights**
    ```bash
-   python scripts/download_aion_codecs.py
+   python scripts/download_aion_codecs.py --repo $WORK/models/aion
    ```
-   The codec weights are cached under `$HF_HOME` (or the default Hugging Face cache). Make sure that directory is accessible from compute nodes.
+   (Omit the `--repo` flag to pull directly from Hugging Face.) The codec weights are cached under `$HF_HOME` (or the default Hugging Face cache). Make sure that directory is accessible from compute nodes.
 
 7. **Quick sanity check**
    Run the environment test script to verify PyTorch and the local AION snapshot:

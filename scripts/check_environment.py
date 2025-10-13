@@ -93,7 +93,7 @@ def check_aion(model_name: str, model_dir: Path | None, device: str, skip_codecs
     print("\n== AION Model ==")
     import json
     from huggingface_hub import hf_hub_download
-    from aion import AION  # Lazy import to provide clearer error if missing
+from aion import AION  # Lazy import to provide clearer error if missing
 
     if model_dir is not None:
         model = AION.from_pretrained(model_dir)
@@ -112,11 +112,12 @@ def check_aion(model_name: str, model_dir: Path | None, device: str, skip_codecs
     if skip_codecs:
         return
 
-    from aion.codecs import CodecManager
     from aion.modalities import LegacySurveyImage
     from camels_aion.config import CAMELS_FIELDS
+    from camels_aion.codec_manager import LocalCodecManager
 
-    codec_manager = CodecManager(device="cpu")
+    codec_repo = repo_id
+    codec_manager = LocalCodecManager(repo=codec_repo, device="cpu")
     flux = torch.zeros(1, len(CAMELS_FIELDS), 128, 128, dtype=torch.float32)
     image = LegacySurveyImage(flux=flux, bands=list(CAMELS_FIELDS))
     tokens = codec_manager.encode(image)

@@ -11,11 +11,11 @@ import torch
 from tqdm.auto import tqdm
 
 from aion import AION
-from aion.codecs import CodecManager
 from aion.modalities import LegacySurveyImage
 
 from .config import CAMELS_FIELDS
 from .data import CamelsIllustrisDataset, CamelsMapSample
+from .codec_manager import LocalCodecManager
 
 
 @dataclass
@@ -70,10 +70,11 @@ class CamelsAionEncoder:
     def __init__(
         self,
         model: Optional[AION] = None,
-        codec_manager: Optional[CodecManager] = None,
+        codec_manager: Optional[LocalCodecManager] = None,
         config: EncoderConfig | None = None,
         model_path: str | Path | None = None,
         model_name: str = "polymathic-ai/aion-base",
+        codec_repo: str | Path | None = None,
     ) -> None:
         self.config = config or EncoderConfig()
         self.device = torch.device(self.config.device)
@@ -87,7 +88,12 @@ class CamelsAionEncoder:
                 self.model = AION.from_pretrained(resolved_name)
         self.model = self.model.to(self.device)
         codec_device = torch.device(self.config.codec_device)
-        self.codec_manager = codec_manager or CodecManager(device=codec_device)
+        repo_ref = (
+            codec_repo
+            if codec_repo is not None
+            else (str(model_path) if model_path is not None else model_name)
+        )
+        self.codec_manager = codec_manager or LocalCodecManager(repo=repo_ref, device=codec_device)
         self.codec_device = codec_device
         self.fields = CAMELS_FIELDS
 

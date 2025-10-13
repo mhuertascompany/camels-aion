@@ -38,6 +38,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--redshift", type=float, default=0.0, help="Redshift slice to load.")
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--device", type=str, default="cuda")
+    parser.add_argument("--codec-device", type=str, default="cpu")
     parser.add_argument(
         "--num-encoder-tokens",
         type=int,
@@ -52,6 +53,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--start-index", type=int, default=None)
     parser.add_argument("--end-index", type=int, default=None)
     parser.add_argument("--prefix", type=str, default=None)
+    parser.add_argument("--model-dir", type=Path, default=None, help="Path to a local AION snapshot (offline mode).")
+    parser.add_argument("--model-name", type=str, default="polymathic-ai/aion-base", help="Hugging Face repo id to use when downloading the model.")
+    parser.add_argument("--codec-repo", type=str, default=None, help="Repo id or local path for codec weights (defaults to model path/repo).")
     return parser.parse_args()
 
 
@@ -72,7 +76,11 @@ def main() -> None:
             batch_size=args.batch_size,
             num_encoder_tokens=args.num_encoder_tokens,
             fp16=not args.fp32,
-        )
+            codec_device=args.codec_device,
+        ),
+        model_path=args.model_dir,
+        model_name=args.model_name,
+        codec_repo=args.codec_repo,
     )
 
     prefix = args.prefix or f"{args.suite}_{args.set_name}_z{args.redshift:0.2f}".replace(".", "p")
