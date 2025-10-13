@@ -23,6 +23,9 @@ CAMELS_REDSHIFT: Final[float] = 0.0
 # defines channel layout when feeding LegacySurveyImage.
 CAMELS_FIELDS: Final[tuple[str, ...]] = ("Mstar", "Mgas", "T", "Z")
 
+# Codec-facing band labels (LegacySurvey expects DES band names)
+CAMELS_CODEC_BANDS: Final[tuple[str, ...]] = ("DES-G", "DES-R", "DES-I", "DES-Z")
+
 # File naming template for CAMELS 2D map numpy files.
 MAP_FILENAME_TEMPLATE: Final[str] = "Maps_{field}_{suite}_{set}_z={redshift:0.2f}.npy"
 

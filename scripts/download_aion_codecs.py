@@ -14,7 +14,7 @@ from huggingface_hub import hf_hub_download
 from aion.codecs.config import HF_REPO_ID, MODALITY_CODEC_MAPPING
 from aion.modalities import LegacySurveyImage
 
-from camels_aion.config import CAMELS_FIELDS
+from camels_aion.config import CAMELS_CODEC_BANDS
 
 
 def parse_args() -> argparse.Namespace:
@@ -40,20 +40,26 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def load_config(repo: str | Path) -> dict[str, float | int | list[int]]:
+def load_config(repo: str | Path) -> tuple[dict[str, object], str | Path]:
     if Path(repo).exists():
         config_path = Path(repo) / "codecs" / LegacySurveyImage.name / "config.json"
         if not config_path.exists():
-            raise FileNotFoundError(
-                f"Could not find codec config at {config_path}. "
-                "Ensure the local snapshot contains the `codecs/` folder."
+            print(
+                f"Codec config not found at {config_path}; falling back to Hugging Face repo."
             )
+            repo_ref = HF_REPO_ID
+            config_path = Path(
+                hf_hub_download(repo_ref, f"codecs/{LegacySurveyImage.name}/config.json")
+            )
+        else:
+            repo_ref = repo
     else:
+        repo_ref = repo
         config_path = Path(
-            hf_hub_download(repo, f"codecs/{LegacySurveyImage.name}/config.json")
+            hf_hub_download(repo_ref, f"codecs/{LegacySurveyImage.name}/config.json")
         )
     with open(config_path, "r", encoding="utf-8") as fh:
-        return json.load(fh)
+        return json.load(fh), repo_ref
 
 
 def instantiate_codec(
@@ -81,18 +87,18 @@ def main() -> None:
     args = parse_args()
 
     print(f"== Priming LegacySurvey image codec from {args.repo} ==")
-    config = load_config(args.repo)
-    codec = instantiate_codec(args.repo, args.codec_device, config)
+    config, repo_for_weights = load_config(args.repo)
+    codec = instantiate_codec(repo_for_weights, args.codec_device, config)
 
     flux = torch.zeros(
         1,
-        len(CAMELS_FIELDS),
+        len(CAMELS_CODEC_BANDS),
         args.image_size,
         args.image_size,
         dtype=torch.float32,
         device=args.codec_device,
     )
-    image = LegacySurveyImage(flux=flux, bands=list(CAMELS_FIELDS))
+    image = LegacySurveyImage(flux=flux, bands=list(CAMELS_CODEC_BANDS))
 
     with torch.no_grad():
         tokens = codec.encode(image)

@@ -113,13 +113,13 @@ from aion import AION  # Lazy import to provide clearer error if missing
         return
 
     from aion.modalities import LegacySurveyImage
-    from camels_aion.config import CAMELS_FIELDS
+    from camels_aion.config import CAMELS_CODEC_BANDS
     from camels_aion.codec_manager import LocalCodecManager
 
     codec_repo = repo_id
     codec_manager = LocalCodecManager(repo=codec_repo, device="cpu")
-    flux = torch.zeros(1, len(CAMELS_FIELDS), 128, 128, dtype=torch.float32)
-    image = LegacySurveyImage(flux=flux, bands=list(CAMELS_FIELDS))
+    flux = torch.zeros(1, len(CAMELS_CODEC_BANDS), 128, 128, dtype=torch.float32)
+    image = LegacySurveyImage(flux=flux, bands=list(CAMELS_CODEC_BANDS))
     tokens = codec_manager.encode(image)
     tokens = {key: tensor.to(device) for key, tensor in tokens.items()}
     print("Encoded synthetic CAMELS 4-channel image:")

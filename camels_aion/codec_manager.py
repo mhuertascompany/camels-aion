@@ -12,7 +12,7 @@ import torch
 from huggingface_hub import hf_hub_download
 
 from aion.codecs.manager import CodecManager
-from aion.codecs.config import MODALITY_CODEC_MAPPING, CodecType
+from aion.codecs.config import MODALITY_CODEC_MAPPING, CodecType, HF_REPO_ID
 from aion.modalities import Modality
 
 
@@ -41,8 +41,15 @@ class LocalCodecManager(CodecManager):
 
         if isinstance(self.repo, Path):
             config_path = self._config_path(self.repo, modality_type)
-            config = self._load_config(config_path)
-            repo_ref = str(self.repo)
+            if config_path.exists():
+                config = self._load_config(config_path)
+                repo_ref = str(self.repo)
+            else:
+                config_path = hf_hub_download(
+                    HF_REPO_ID, f"codecs/{modality_type.name}/config.json"
+                )
+                config = self._load_config(Path(config_path))
+                repo_ref = HF_REPO_ID
         else:
             config_path = hf_hub_download(
                 self.repo, f"codecs/{modality_type.name}/config.json"

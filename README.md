@@ -93,6 +93,7 @@ python scripts/encode_illustris_embeddings.py \
 Key behaviour:
 
 - Maps are stacked into a 4-channel image (channel order `Mstar`, `Mgas`, `T`, `Z`) and encoded with the LegacySurvey image codec.
+- During encoding we reuse the codec's DES band names (`DES-G/R/I/Z`) as placeholders for the four CAMELS channels so that the pretrained tokenizer can be applied offline.
 - Embeddings + ground-truth labels are saved in shard files (`*.pt`) alongside a manifest JSON.
 - Use `--start-index` / `--end-index` to process subsets, and `--fp32` to disable mixed precision if needed.
 

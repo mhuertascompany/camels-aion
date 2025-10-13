@@ -13,7 +13,7 @@ from tqdm.auto import tqdm
 from aion import AION
 from aion.modalities import LegacySurveyImage
 
-from .config import CAMELS_FIELDS
+from .config import CAMELS_FIELDS, CAMELS_CODEC_BANDS
 from .data import CamelsIllustrisDataset, CamelsMapSample
 from .codec_manager import LocalCodecManager
 
@@ -88,11 +88,14 @@ class CamelsAionEncoder:
                 self.model = AION.from_pretrained(resolved_name)
         self.model = self.model.to(self.device)
         codec_device = torch.device(self.config.codec_device)
-        repo_ref = (
-            codec_repo
-            if codec_repo is not None
-            else (str(model_path) if model_path is not None else model_name)
-        )
+        if codec_repo is not None:
+            repo_ref = codec_repo
+        else:
+            repo_ref = model_name
+        if isinstance(repo_ref, str) and "/" not in repo_ref and not Path(repo_ref).exists():
+            repo_ref = f"polymathic-ai/{repo_ref}"
+        if isinstance(repo_ref, str) and Path(repo_ref).exists():
+            repo_ref = Path(repo_ref)
         self.codec_manager = codec_manager or LocalCodecManager(repo=repo_ref, device=codec_device)
         self.codec_device = codec_device
         self.fields = CAMELS_FIELDS
@@ -101,7 +104,7 @@ class CamelsAionEncoder:
         """Encode a batch of CAMELS maps into AION embeddings."""
         flux = torch.from_numpy(sample.images).to(self.codec_device, dtype=torch.float32)
 
-        modality = LegacySurveyImage(flux=flux, bands=list(self.fields))
+        modality = LegacySurveyImage(flux=flux, bands=list(CAMELS_CODEC_BANDS))
         tokens = self.codec_manager.encode(modality)
 
         tokens = {key: tensor.to(self.device) for key, tensor in tokens.items()}
