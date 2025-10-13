@@ -22,8 +22,6 @@ set -euo pipefail
 module purge
 module load pytorch-gpu/py3/2.2.0
 
-# Activate virtual environment (adjust path as needed)
-source "$WORK/venvs/camels-aion/bin/activate"
 
 # Determine local model directory
 MODEL_DIR="${AION_MODEL_DIR:-$WORK/models/aion}"
