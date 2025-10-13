@@ -22,6 +22,12 @@ set -euo pipefail
 module purge
 module load pytorch-gpu/py3/2.2.0
 
-# Run environment check
+# Activate virtual environment (adjust path as needed)
+source "$WORK/venvs/camels-aion/bin/activate"
+
+# Determine local model directory
+MODEL_DIR="${AION_MODEL_DIR:-$WORK/models/aion}"
+
+# Run environment check using local snapshot
 mkdir -p logs
-srun python scripts/check_environment.py --device cuda | tee logs/check_environment.log
+srun python scripts/check_environment.py --device cuda --model-dir "$MODEL_DIR" | tee logs/check_environment.log
