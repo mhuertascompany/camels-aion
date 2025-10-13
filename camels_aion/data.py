@@ -143,10 +143,6 @@ class CamelsIllustrisDataset:
         self.num_samples = next(iter(lengths.values()))
 
         self.params = load_param_table(suite=suite, set_name=set_name, base_path=self.base_path)
-        if self.params.shape[0] != self.num_samples:
-            raise ValueError(
-                f"Parameter table has {self.params.shape[0]} rows but maps have {self.num_samples} samples"
-            )
 
     def __len__(self) -> int:
         return self.num_samples
@@ -176,7 +172,9 @@ class CamelsIllustrisDataset:
                 # maps shape: (B, H, W)
                 stacked.append(np.expand_dims(maps, axis=1))
             images = np.concatenate(stacked, axis=1).astype(self.dtype, copy=False)
-            labels = self.params[batch_indices].astype(np.float32, copy=False)
+            # Each parameter row corresponds to 15 maps -> map index // 15
+            label_indices = np.array(batch_indices) // 15
+            labels = self.params[label_indices].astype(np.float32, copy=False)
             yield CamelsMapSample(indices=batch_indices, images=images, labels=labels)
 
     def compute_channel_stats(self, sample_size: int = 1024) -> dict[str, dict[str, float]]:
