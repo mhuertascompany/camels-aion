@@ -176,3 +176,13 @@ HEAD_OUT=$SCRATCH/camels_aion/heads/SIMBA_LH,
 NORM_STATS=$SCRATCH/camels_aion/stats/simba_lh.json
 cluster/pipeline_simba.sbatch
 ```
+
+Cross-suite evaluation (Illustris head on SIMBA embeddings):
+```bash
+sbatch --export=ALL,\
+MODEL_PATH=$SCRATCH/camels_aion/heads/IllustrisTNG_LH/best_model.pt,\
+MANIFEST=$SCRATCH/camels_aion/embeddings/SIMBA_LH/SIMBA_LH_z0p00_manifest.json,\
+SHARD_DIR=$SCRATCH/camels_aion/embeddings/SIMBA_LH,\
+OUTPUT=$SCRATCH/camels_aion/evals/illustris_to_simba.json\
+cluster/evaluate_head_on_simba.sbatch
+```
