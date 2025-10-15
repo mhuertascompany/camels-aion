@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from datetime import datetime
 from pathlib import Path
 from typing import Iterable
 
@@ -193,7 +194,11 @@ def main() -> None:
         columns=[f"target_{name}" for name in PARAMETER_NAMES]
         + [f"pred_{name}" for name in PARAMETER_NAMES],
     )
-    df.to_csv(args.output_dir / "test_predictions.csv", index=False)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    csv_path = args.output_dir / f"test_predictions_{timestamp}.csv"
+    df.to_csv(csv_path, index=False)
+    # Optional convenience file pointing to latest run
+    df.to_csv(args.output_dir / "test_predictions_latest.csv", index=False)
 
 
 if __name__ == "__main__":

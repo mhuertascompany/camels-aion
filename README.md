@@ -167,3 +167,12 @@ The resulting JSON contains per-parameter MSE / MAE on the SIMBA suite so we can
 - Perform normalization experiments (per-field scaling vs. raw values).
 - Extend the codec layer with CAMELS-specific quantizers if LegacySurvey assumptions prove suboptimal.
 - Add logging/notebooks to visualise embeddings and regression residuals across cosmological parameter space.
+
+For SIMBA, use the dedicated pipeline script (defaulting to the SIMBA suite):
+```bash
+sbatch --export=ALL,SUITE=SIMBA,SET_NAME=LH,
+EMBED_DIR=$SCRATCH/camels_aion/embeddings/SIMBA_LH,
+HEAD_OUT=$SCRATCH/camels_aion/heads/SIMBA_LH,
+NORM_STATS=$SCRATCH/camels_aion/stats/simba_lh.json
+cluster/pipeline_simba.sbatch
+```

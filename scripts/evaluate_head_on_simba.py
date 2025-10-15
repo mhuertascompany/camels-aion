@@ -54,15 +54,18 @@ def main() -> None:
     with open(args.output, "w", encoding="utf-8") as fh:
         json.dump({"simba": summary}, fh, indent=2)
 
-    if tf := args.output.with_suffix(".csv"):
-        import pandas as pd
+    import pandas as pd
 
-        df = pd.DataFrame(
-            torch.cat([targets.cpu(), predictions.cpu()], dim=1).numpy(),
-            columns=[f"target_{name}" for name in PARAMETER_NAMES]
-            + [f"pred_{name}" for name in PARAMETER_NAMES],
-        )
-        df.to_csv(tf, index=False)
+    df = pd.DataFrame(
+        torch.cat([targets.cpu(), predictions.cpu()], dim=1).numpy(),
+        columns=[f"target_{name}" for name in PARAMETER_NAMES]
+        + [f"pred_{name}" for name in PARAMETER_NAMES],
+    )
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    csv_path = args.output.parent / f"{args.output.stem}_{timestamp}.csv"
+    df.to_csv(csv_path, index=False)
+    latest_path = args.output.parent / f"{args.output.stem}_latest.csv"
+    df.to_csv(latest_path, index=False)
 
 
 if __name__ == "__main__":
