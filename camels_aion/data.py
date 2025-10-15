@@ -259,6 +259,6 @@ class CamelsIllustrisDataset:
         clip = float(stats.get("clip", self.normalization_clip))
         normalized = np.clip(normalized, -clip, clip)
 
-        min_flux, max_flux = self._clamp_bounds[field]
-        mapped = normalized * (max_flux - min_flux) / (2 * clip) + (min_flux + max_flux) / 2
+        limit = float(self._clamp_bounds[field])
+        mapped = normalized * (limit / clip)
         return mapped.astype(self.dtype, copy=False)
