@@ -35,7 +35,7 @@ DEVICE=${AION_DEVICE:-cuda}
 CODEC_DEVICE=${AION_CODEC_DEVICE:-cpu}
 PREFIX=${PREFIX:-${SUITE}_${SET_NAME}_z0p00}
 SKIP_ENCODING=${SKIP_ENCODING:-0}
-NORM_STATS=${NORM_STATS:-/lustre/fswork/projects/rech/oxl/utl47bv/data/camels_aion/norm/camels_TNG.json}
+NORM_STATS=${NORM_STATS:-/lustre/fswork/projects/rech/oxl/utl47bv/data/camels_aion/norm/camels_TNG_log.json}
 NORM_CLIP=${NORM_CLIP:-1.5}
 
 EMBED_DIR=${EMBED_DIR:-$WORK/data/camels_aion/embeddings/${SUITE}_${SET_NAME}}
