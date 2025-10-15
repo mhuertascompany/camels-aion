@@ -15,17 +15,13 @@ set -euo pipefail
 module purge
 module load pytorch-gpu/py3/2.2.0
 
-if [[ -n "${AION_VENV:-}" && -f "${AION_VENV}/bin/activate" ]]; then
-  source "${AION_VENV}/bin/activate"
-fi
-
 export PYTHONPATH="$PWD:${PYTHONPATH:-}"
 
-BASE_PATH=${CAMELS_BASE_PATH:?"Please export CAMELS_BASE_PATH"}
+BASE_PATH=${CAMELS_BASE_PATH:-/lustre/fsmisc/dataset/CAMELS_Multifield_Dataset/2D_maps/data}
 SUITE=${SUITE:-IllustrisTNG}
 SET_NAME=${SET_NAME:-LH}
 REDSHIFT=${REDSHIFT:-0.0}
-OUTPUT=${OUTPUT_STATS:?"Please export OUTPUT_STATS for the stats JSON"}
+OUTPUT=${OUTPUT_STATS:-/lustre/fswork/projects/rech/oxl/utl47bv/data/camels_aion/norm}
 FIELDS=${FIELDS:-"Mstar Mgas T Z"}
 SAMPLE_SIZE=${SAMPLE_SIZE:-5000}
 CLIP=${CLIP:-1.5}
