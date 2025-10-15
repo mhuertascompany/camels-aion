@@ -25,7 +25,7 @@ export PYTHONPATH="$PWD:${PYTHONPATH:-}"
 
 SHARD_DIR=${SHARD_DIR:-/lustre/fswork/projects/rech/oxl/utl47bv/data/camels_aion/embeddings/IllustrisTNG_LH}
 MANIFEST=${MANIFEST:-/lustre/fswork/projects/rech/oxl/utl47bv/data/camels_aion/embeddings/IllustrisTNG_LH/IllustrisTNG_LH_z0p00_manifest.json}
-OUTPUT_DIR=${OUTPUT_DIR:-$SCRATCH/camels_aion/plots}
+OUTPUT_DIR=${OUTPUT_DIR:-/lustre/fswork/projects/rech/oxl/utl47bv/data/camels_aion/plots}
 MAX_POINTS=${MAX_POINTS:-5000}
 SEED=${UMAP_SEED:-42}
 

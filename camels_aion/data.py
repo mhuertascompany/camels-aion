@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+import json
 import math
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Iterator, Sequence
 
 import numpy as np
+from aion.codecs.preprocessing.image import Clamp
 
 from .config import (
     CAMELS_BASE_PATH,
+    CAMELS_CODEC_BANDS,
     CAMELS_FIELDS,
     CAMELS_REDSHIFT,
     CAMELS_SET,
@@ -118,6 +121,9 @@ class CamelsIllustrisDataset:
         base_path: Path | None = None,
         dtype: np.dtype = np.float32,
         mmap: bool = True,
+        normalization_stats: dict | str | Path | None = None,
+        normalization_clip: float = 1.5,
+        apply_normalization: bool = True,
     ) -> None:
         self.fields = tuple(fields)
         self.suite = suite
@@ -125,6 +131,7 @@ class CamelsIllustrisDataset:
         self.redshift = redshift
         self.base_path = Path(base_path) if base_path else CAMELS_BASE_PATH
         self.dtype = dtype
+        self.normalization_clip = normalization_clip
 
         self._maps = {
             field: load_map_file(
@@ -143,6 +150,21 @@ class CamelsIllustrisDataset:
         self.num_samples = next(iter(lengths.values()))
 
         self.params = load_param_table(suite=suite, set_name=set_name, base_path=self.base_path)
+
+        if normalization_stats is not None:
+            self.normalization_stats = self._load_normalization_stats(normalization_stats)
+        else:
+            self.normalization_stats = None
+        self.apply_normalization = apply_normalization and self.normalization_stats is not None
+        if self.apply_normalization:
+            self._clamp = Clamp()
+            self._clamp_bounds = {
+                field: self._clamp.clamp_dict[band]
+                for field, band in zip(self.fields, CAMELS_CODEC_BANDS)
+            }
+        else:
+            self._clamp = None
+            self._clamp_bounds = {}
 
     def __len__(self) -> int:
         return self.num_samples
@@ -168,10 +190,13 @@ class CamelsIllustrisDataset:
             # Stack channels for each field
             stacked = []
             for field in self.fields:
-                maps = self._maps[field][batch_indices]
-                # maps shape: (B, H, W)
+                maps = np.array(self._maps[field][batch_indices], copy=False)
+                if self.apply_normalization:
+                    maps = self._normalize_field(field, maps)
+                else:
+                    maps = maps.astype(self.dtype, copy=False)
                 stacked.append(np.expand_dims(maps, axis=1))
-            images = np.concatenate(stacked, axis=1).astype(self.dtype, copy=False)
+            images = np.concatenate(stacked, axis=1)
             # Each parameter row corresponds to 15 maps -> map index // 15
             label_indices = np.array(batch_indices) // 15
             labels = self.params[label_indices].astype(np.float32, copy=False)
@@ -191,3 +216,49 @@ class CamelsIllustrisDataset:
                 "max": float(np.max(data)),
             }
         return stats
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _load_normalization_stats(self, spec: dict | str | Path) -> dict:
+        if isinstance(spec, dict):
+            stats = spec
+        else:
+            path = Path(spec)
+            with open(path, "r", encoding="utf-8") as fh:
+                stats = json.load(fh)
+        return stats
+
+    def _normalize_field(self, field: str, data: np.ndarray) -> np.ndarray:
+        stats = self.normalization_stats.get(field)
+        if stats is None:
+            return data.astype(self.dtype, copy=False)
+        if field not in self._clamp_bounds:
+            return data.astype(self.dtype, copy=False)
+
+        transform = stats.get("transform", "arcsinh")
+        scale = float(stats.get("scale", 1.0))
+        eps = float(stats.get("eps", 1e-8))
+        denom = scale if abs(scale) > eps else eps
+
+        if transform == "log1p":
+            transformed = np.log1p(data / denom)
+        elif transform == "none":
+            transformed = data / denom
+        else:
+            transformed = np.arcsinh(data / denom)
+
+        low = float(stats.get("low", np.percentile(transformed, 1)))
+        high = float(stats.get("high", np.percentile(transformed, 99)))
+        if high - low <= 1e-6:
+            normalized = transformed - low
+        else:
+            normalized = (transformed - low) / (high - low) * 2 - 1
+
+        clip = float(stats.get("clip", self.normalization_clip))
+        normalized = np.clip(normalized, -clip, clip)
+
+        min_flux, max_flux = self._clamp_bounds[field]
+        mapped = normalized * (max_flux - min_flux) / (2 * clip) + (min_flux + max_flux) / 2
+        return mapped.astype(self.dtype, copy=False)

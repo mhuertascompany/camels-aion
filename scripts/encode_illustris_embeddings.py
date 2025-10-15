@@ -56,6 +56,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--model-dir", type=Path, default=None, help="Path to a local AION snapshot (offline mode).")
     parser.add_argument("--model-name", type=str, default="polymathic-ai/aion-base", help="Hugging Face repo id to use when downloading the model.")
     parser.add_argument("--codec-repo", type=str, default=None, help="Repo id or local path for codec weights (defaults to model path/repo).")
+    parser.add_argument("--normalization-stats", type=Path, default=None, help="Optional JSON file with per-field normalization statistics.")
+    parser.add_argument("--normalization-clip", type=float, default=1.5, help="Clip value applied after normalization before mapping into codec range.")
     return parser.parse_args()
 
 
@@ -67,6 +69,8 @@ def main() -> None:
         suite=args.suite,
         set_name=args.set_name,
         redshift=args.redshift,
+        normalization_stats=args.normalization_stats,
+        normalization_clip=args.normalization_clip,
     )
     indices = parse_indices(args.start_index, args.end_index, len(dataset))
 

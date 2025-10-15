@@ -79,6 +79,19 @@ This prints the total sample count, image shape, and quick statistics for the fo
 
 ## 2. Encode CAMELS maps with AION
 
+### (Optional) Estimate normalization statistics
+
+To make the LegacySurvey tokenizer behave sensibly on CAMELS maps, compute per-field statistics once:
+
+```bash
+python scripts/compute_camels_stats.py \
+  --base-path /lustre/fsmisc/dataset/CAMELS_Multifield_Dataset/2D_maps/data \
+  --suite IllustrisTNG --set LH --redshift 0.0 \
+  --output $SCRATCH/camels_aion/stats/illustris_lh.json
+```
+
+The JSON contains the `arcsinh` scaling factors and quantiles used to remap each field into the tokenizer's dynamic range.
+
 ```bash
 python scripts/encode_illustris_embeddings.py \
   --suite IllustrisTNG \
@@ -87,7 +100,8 @@ python scripts/encode_illustris_embeddings.py \
   --output-dir /path/to/illustris_embeddings \
   --batch-size 32 \
   --device cuda \
-  --num-encoder-tokens 600
+  --num-encoder-tokens 600 \
+  --normalization-stats $SCRATCH/camels_aion/stats/illustris_lh.json
 ```
 
 Key behaviour:
@@ -96,6 +110,7 @@ Key behaviour:
 - During encoding we reuse the codec's DES band names (`DES-G/R/I/Z`) as placeholders for the four CAMELS channels so that the pretrained tokenizer can be applied offline.
 - Embeddings + ground-truth labels are saved in shard files (`*.pt`) alongside a manifest JSON.
 - Use `--start-index` / `--end-index` to process subsets, and `--fp32` to disable mixed precision if needed.
+- `--device` accepts `cuda`, `cpu`, or `auto` (default). Use `auto` when running on login nodes without GPUs; specify `cuda` explicitly for compute-node jobs.
 - `--device` accepts `cuda`, `cpu`, or `auto` (default). Use `auto` when running on login nodes without GPUs; specify `cuda` explicitly for compute-node jobs.
 
 Run the same command with `--suite SIMBA` to prepare transfer-evaluation embeddings.
@@ -117,6 +132,7 @@ python scripts/train_parameter_head.py \
 - Uses a 70/15/15 train/val/test split (configurable).
 - Supports either a linear head (`--hidden-dim` omitted) or a 2-layer MLP.
 - Saves the best checkpoint (`best_model.pt`) and a JSON summary with per-parameter RMSE/MAE.
+- Writes `test_predictions.csv` pairing ground-truth parameters with the model's predictions for quick plotting.
 - The training script automatically averages AION encodings over the token dimension before fitting the regression head.
 
 ## 4. Evaluate zero-shot transfer on SIMBA embeddings

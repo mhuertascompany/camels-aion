@@ -30,11 +30,35 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--fp32", action="store_true", help="Disable mixed precision during encoding.")
     parser.add_argument("--skip-encoder", action="store_true", help="Only load CAMELS maps without running AION.")
     parser.add_argument("--stats-samples", type=int, default=512, help="Number of samples for channel statistics.")
+    parser.add_argument("--normalization-stats", type=Path, default=None, help="Optional JSON stats file used to normalize CAMELS maps before tokenization.")
+    parser.add_argument("--normalization-clip", type=float, default=1.5, help="Clip value for normalized data.")
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
+
+    dataset_raw = CamelsIllustrisDataset(
+        fields=CAMELS_FIELDS,
+        suite=args.suite,
+        set_name=args.set_name,
+        redshift=args.redshift,
+        base_path=args.base_path,
+        apply_normalization=False,
+    )
+
+    print("== CAMELS Dataset ==")
+    print(f"Total samples : {len(dataset_raw)}")
+    channels, height, width = dataset_raw.image_shape
+    print(f"Image shape   : {channels} × {height} × {width}")
+
+    stats = dataset_raw.compute_channel_stats(sample_size=args.stats_samples)
+    print("Per-channel stats (approximate):")
+    for field, summary in stats.items():
+        print(
+            f"  {field:>5s} | mean={summary['mean']:.4e} std={summary['std']:.4e} "
+            f"min={summary['min']:.4e} max={summary['max']:.4e}"
+        )
 
     dataset = CamelsIllustrisDataset(
         fields=CAMELS_FIELDS,
@@ -42,20 +66,9 @@ def main() -> None:
         set_name=args.set_name,
         redshift=args.redshift,
         base_path=args.base_path,
+        normalization_stats=args.normalization_stats,
+        normalization_clip=args.normalization_clip,
     )
-
-    print("== CAMELS Dataset ==")
-    print(f"Total samples : {len(dataset)}")
-    channels, height, width = dataset.image_shape
-    print(f"Image shape   : {channels} × {height} × {width}")
-
-    stats = dataset.compute_channel_stats(sample_size=args.stats_samples)
-    print("Per-channel stats (approximate):")
-    for field, summary in stats.items():
-        print(
-            f"  {field:>5s} | mean={summary['mean']:.4e} std={summary['std']:.4e} "
-            f"min={summary['min']:.4e} max={summary['max']:.4e}"
-        )
 
     sample_count = min(args.sample_count, len(dataset))
     sample_indices = list(range(sample_count))
