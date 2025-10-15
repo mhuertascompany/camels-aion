@@ -92,6 +92,13 @@ python scripts/compute_camels_stats.py \
 
 The JSON contains the `arcsinh` scaling factors and quantiles used to remap each field into the tokenizer's dynamic range.
 
+For alternative experiments, you can generate different stats files without touching the baseline:
+
+- `scripts/compute_camels_stats_log.py` (`cluster/compute_camels_stats_log.sbatch`) – log1p scaling.
+- `scripts/compute_camels_stats_linear.py` (`cluster/compute_camels_stats_linear.sbatch`) – simple linear z-score scaling.
+
+Point `--normalization-stats` at the desired JSON when encoding.
+
 ```bash
 python scripts/encode_illustris_embeddings.py \
   --suite IllustrisTNG \
