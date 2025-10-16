@@ -186,3 +186,13 @@ SHARD_DIR=$SCRATCH/camels_aion/embeddings/SIMBA_LH,\
 OUTPUT=$SCRATCH/camels_aion/evals/illustris_to_simba.json\
 cluster/evaluate_head_on_simba.sbatch
 ```
+
+To compare suites in a shared UMAP projection, use `scripts/compare_umap_embeddings.py` or the `cluster/compare_umap_embeddings.sbatch` wrapper.
+```bash
+python scripts/compare_umap_embeddings.py \
+  --ref-manifest $SCRATCH/camels_aion/embeddings/IllustrisTNG_LH/IllustrisTNG_LH_z0p00_manifest.json \
+  --ref-shard-dir $SCRATCH/camels_aion/embeddings/IllustrisTNG_LH \
+  --target-manifest $SCRATCH/camels_aion/embeddings/SIMBA_LH/SIMBA_LH_z0p00_manifest.json \
+  --target-shard-dir $SCRATCH/camels_aion/embeddings/SIMBA_LH \
+  --output-dir $SCRATCH/camels_aion/plots/umap_compare
+```
