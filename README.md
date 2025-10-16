@@ -196,3 +196,32 @@ python scripts/compare_umap_embeddings.py \
   --target-shard-dir $SCRATCH/camels_aion/embeddings/SIMBA_LH \
   --output-dir $SCRATCH/camels_aion/plots/umap_compare
 ```
+
+## Baseline CNN/ViT experiments
+Train a baseline model (CNN or ViT) on IllustrisTNG maps:
+```bash
+python scripts/train_baseline_model.py \
+  --model cnn \
+  --base-path /lustre/fsmisc/dataset/CAMELS_Multifield_Dataset/2D_maps/data \
+  --suite IllustrisTNG --set LH --redshift 0.0 \
+  --normalization-stats $SCRATCH/camels_aion/stats/tng_arcsinh.json \
+  --output-dir $SCRATCH/camels_aion/baselines/IllustrisTNG_LH/cnn
+```
+
+Evaluate the saved head on SIMBA:
+```bash
+python scripts/evaluate_baseline_cross.py \
+  --model $SCRATCH/camels_aion/baselines/IllustrisTNG_LH/cnn/best_model.pt \
+  --base-path /lustre/fsmisc/dataset/CAMELS_Multifield_Dataset/2D_maps/data \
+  --suite SIMBA --set LH --redshift 0.0 \
+  --normalization-stats $SCRATCH/camels_aion/stats/simba_arcsinh.json \
+  --output-dir $SCRATCH/camels_aion/baselines/SIMBA_LH/cnn_cross
+```
+
+Use `scripts/compare_baseline_features.py` (or `cluster/compare_baseline_features.sbatch`) to visualise both suites on a shared UMAP projection using the saved NPZ feature files.
+```bash
+python scripts/compare_baseline_features.py \
+  --ref-features $SCRATCH/camels_aion/baselines/IllustrisTNG_LH/cnn/test_features_latest.npz \
+  --target-features $SCRATCH/camels_aion/baselines/SIMBA_LH/cnn_cross/cross_features_latest.npz \
+  --output-dir $SCRATCH/camels_aion/baselines/umap_compare
+```
