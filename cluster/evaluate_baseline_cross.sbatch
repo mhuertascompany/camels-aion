@@ -4,8 +4,8 @@
 #SBATCH --job-name=camels-baseline-cross
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --gres=gpu:0
-#SBATCH --cpus-per-task=8
+#SBATCH --gres=gpu:1
+#SBATCH --cpus-per-task=20
 #SBATCH --time=04:00:00
 #SBATCH --output=logs/slurm/%x-%j.out
 #SBATCH --error=logs/slurm/%x-%j.err
@@ -15,20 +15,17 @@ set -euo pipefail
 module purge
 module load pytorch-gpu/py3/2.2.0
 
-if [[ -n "${AION_VENV:-}" && -f "${AION_VENV}/bin/activate" ]]; then
-  source "${AION_VENV}/bin/activate"
-fi
 
 pip install --user --quiet umap-learn seaborn
 
 export PYTHONPATH="$PWD:${PYTHONPATH:-}"
 
-MODEL_PATH=${MODEL_PATH:?\"Please export MODEL_PATH pointing to best_model.pt\"}
-BASE_PATH=${CAMELS_BASE_PATH:?\"Please export CAMELS_BASE_PATH\"}
+MODEL_PATH=${MODEL_PATH:-/lustre/fswork/projects/rech/oxl/utl47bv/data/camels_aion/baselines/IllustrisTNG_LH/cnn/best_model.pt}
+BASE_PATH=${CAMELS_BASE_PATH:-/lustre/fsmisc/dataset/CAMELS_Multifield_Dataset/2D_maps/data}
 SUITE=${SUITE:-SIMBA}
 SET_NAME=${SET_NAME:-LH}
 REDSHIFT=${REDSHIFT:-0.0}
-OUTPUT_DIR=${OUTPUT_DIR:-$SCRATCH/camels_aion/baselines/${SUITE}_${SET_NAME}/cross_eval}
+OUTPUT_DIR=${OUTPUT_DIR:-$WORK/data/camels_aion/baselines/${SUITE}_${SET_NAME}/cross_eval}
 NORMALIZATION_STATS=${NORM_STATS:-}
 NORMALIZATION_CLIP=${NORM_CLIP:-1.5}
 BATCH_SIZE=${BATCH_SIZE:-64}
