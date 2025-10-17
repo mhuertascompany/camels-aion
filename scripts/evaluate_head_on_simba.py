@@ -5,13 +5,16 @@ from __future__ import annotations
 
 import argparse
 import json
+from datetime import datetime
 from pathlib import Path
 
+import numpy as np
+import pandas as pd
 import torch
 from torch.utils.data import DataLoader, TensorDataset
-from datetime import datetime
 
-from train_parameter_head import load_embeddings, evaluate, PARAMETER_NAMES, build_model
+from camels_aion.regression_head import RegressionModel
+from train_parameter_head import load_embeddings, evaluate, PARAMETER_NAMES
 
 
 def parse_args() -> argparse.Namespace:
@@ -37,25 +40,38 @@ def main() -> None:
     checkpoint = torch.load(args.model, map_location="cpu", weights_only=False)
     metadata = checkpoint.get("metadata", {})
     hidden_dim = metadata.get("hidden_dim")
-    model_state = checkpoint["model_state"]
+    num_layers = metadata.get("num_layers", 0)
+    dropout = metadata.get("dropout", 0.1)
+    mean = torch.tensor(metadata.get("feature_mean", [0.0] * embeddings.shape[-1]), dtype=torch.float32)
+    std = torch.tensor(metadata.get("feature_std", [1.0] * embeddings.shape[-1]), dtype=torch.float32)
+    std = torch.clamp(std, min=1e-6)
 
-    model = build_model(embeddings.shape[-1], hidden_dim=hidden_dim)
-    model.load_state_dict(model_state)
+    hidden_dims = []
+    if hidden_dim and num_layers > 0:
+        hidden_dims = [hidden_dim] * num_layers
+
+    model = RegressionModel(
+        input_dim=embeddings.shape[-1],
+        num_outputs=len(PARAMETER_NAMES),
+        hidden_dims=hidden_dims,
+        dropout=dropout,
+        feature_mean=mean,
+        feature_std=std,
+    )
+    model.load_state_dict(checkpoint["model_state"])
     model = model.to(args.device)
 
     dataset = TensorDataset(embeddings, labels)
     loader = DataLoader(dataset, batch_size=args.batch_size)
 
-    metrics, predictions, targets = evaluate(
-        model, loader, torch.device(args.device), return_outputs=True
+    metrics, predictions, targets, features = evaluate(
+        model, loader, torch.device(args.device)
     )
     summary = {name: {"mse": mse, "mae": mae} for name, mse, mae in zip(PARAMETER_NAMES, metrics["mse"], metrics["mae"])}
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with open(args.output, "w", encoding="utf-8") as fh:
         json.dump({"simba": summary}, fh, indent=2)
-
-    import pandas as pd
 
     df = pd.DataFrame(
         torch.cat([targets.cpu(), predictions.cpu()], dim=1).numpy(),
@@ -67,6 +83,9 @@ def main() -> None:
     df.to_csv(csv_path, index=False)
     latest_path = args.output.parent / f"{args.output.stem}_latest.csv"
     df.to_csv(latest_path, index=False)
+
+    npz_path = args.output.parent / f"{args.output.stem}_features_latest.npz"
+    np.savez(npz_path, features=features.numpy(), targets=targets.numpy(), predictions=predictions.numpy())
 
 
 if __name__ == "__main__":
