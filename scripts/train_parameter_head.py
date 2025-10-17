@@ -15,7 +15,7 @@ import pandas as pd
 import seaborn as sns
 import torch
 from torch import nn
-from torch.utils.data import DataLoader, TensorDataset
+from torch.utils.data import DataLoader, TensorDataset, Subset
 import umap
 
 from camels_aion.regression_head import RegressionModel
@@ -23,7 +23,7 @@ from camels_aion.regression_head import RegressionModel
 PARAMETER_NAMES = ["Omega_m", "sigma8", "A_SN1", "A_SN2", "A_AGN1", "A_AGN2"]
 
 
-def load_embeddings(shard_paths: Iterable[Path]) -> tuple[torch.Tensor, torch.Tensor]:
+def load_embeddings(shard_paths: Iterable[Path]) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     embeddings, labels = [], []
     for shard_path in shard_paths:
         payload = torch.load(shard_path, weights_only=False)
@@ -72,9 +72,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--shard-dir", type=Path, required=True, help="Directory containing embedding shards.")
     parser.add_argument("--output-dir", type=Path, required=True)
 
-    parser.add_argument("--hidden-dim", type=int, default=512, help="Hidden size for the regression head (set to 0 for linear).")
-    parser.add_argument("--num-layers", type=int, default=3, help="Number of hidden layers in the regression head.")
-    parser.add_argument("--dropout", type=float, default=0.1, help="Dropout probability inside the regression head.")
+    parser.add_argument("--hidden-dim", type=int, default=256, help="Hidden size for the regression head (set to 0 for linear).")
+    parser.add_argument("--num-layers", type=int, default=2, help="Number of hidden layers in the regression head.")
+    parser.add_argument("--dropout", type=float, default=0.2, help="Dropout probability inside the regression head.")
 
     parser.add_argument("--epochs", type=int, default=50)
     parser.add_argument("--batch-size", type=int, default=256)
@@ -97,21 +97,21 @@ def split_indices(num_samples: int, train_frac: float, val_frac: float, seed: in
     return perm[:train_end], perm[train_end:val_end], perm[val_end:]
 
 
-def make_loaders(embeddings: torch.Tensor, labels: torch.Tensor, train_idx, val_idx, test_idx, batch_size: int):
+def make_loaders(dataset: TensorDataset, train_idx, val_idx, test_idx, batch_size: int):
     train_loader = DataLoader(
-        TensorDataset(embeddings[train_idx], labels[train_idx]),
+        Subset(dataset, train_idx.tolist()),
         batch_size=batch_size,
         shuffle=True,
         drop_last=False,
     )
     val_loader = DataLoader(
-        TensorDataset(embeddings[val_idx], labels[val_idx]),
+        Subset(dataset, val_idx.tolist()),
         batch_size=batch_size,
         shuffle=False,
         drop_last=False,
     )
     test_loader = DataLoader(
-        TensorDataset(embeddings[test_idx], labels[test_idx]),
+        Subset(dataset, test_idx.tolist()),
         batch_size=batch_size,
         shuffle=False,
         drop_last=False,
@@ -185,14 +185,10 @@ def main() -> None:
         manifest = json.load(fh)
     shard_paths = [args.shard_dir / name for name in manifest["shards"]]
 
-    embeddings, labels = load_embeddings(shard_paths)
+    embeddings, labels, indices = load_embeddings(shard_paths)
 
-    train_idx, val_idx, test_idx = split_indices(
-        embeddings.shape[0],
-        train_frac=args.train_frac,
-        val_frac=args.val_frac,
-        seed=args.seed,
-    )
+    train_idx, val_idx, test_idx = split_indices(indices.shape[0], args.train_frac, args.val_frac, args.seed)
+    train_idx, val_idx, test_idx = indices[train_idx], indices[val_idx], indices[test_idx]
 
     train_feats = embeddings[train_idx]
     feat_mean = train_feats.mean(dim=0)
@@ -204,7 +200,6 @@ def main() -> None:
         train_labels = labels[train_idx]
         label_mean = train_labels.mean(dim=0)
         label_std = train_labels.std(dim=0, unbiased=False).clamp_min(1e-6)
-        embeddings = embeddings
         labels = (labels - label_mean) / label_std
 
     hidden_dims = []
@@ -223,9 +218,8 @@ def main() -> None:
     device = torch.device(args.device if torch.cuda.is_available() else "cpu")
     model = model.to(device)
 
-    train_loader, val_loader, test_loader = make_loaders(
-        embeddings, labels, train_idx, val_idx, test_idx, args.batch_size
-    )
+    dataset = TensorDataset(embeddings, labels)
+    train_loader, val_loader, test_loader = make_loaders(dataset, train_idx, val_idx, test_idx, args.batch_size)
 
     criterion = nn.MSELoss()
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
