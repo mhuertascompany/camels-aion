@@ -84,6 +84,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--train-frac", type=float, default=0.7)
     parser.add_argument("--val-frac", type=float, default=0.15)
+    parser.add_argument("--label-standardize", action="store_true", help="Standardize labels using training set mean/std.")
     return parser.parse_args()
 
 
@@ -194,8 +195,17 @@ def main() -> None:
     )
 
     train_feats = embeddings[train_idx]
-    mean = train_feats.mean(dim=0)
-    std = train_feats.std(dim=0, unbiased=False).clamp_min(1e-6)
+    feat_mean = train_feats.mean(dim=0)
+    feat_std = train_feats.std(dim=0, unbiased=False).clamp_min(1e-6)
+
+    label_mean = torch.zeros(len(PARAMETER_NAMES))
+    label_std = torch.ones(len(PARAMETER_NAMES))
+    if args.label_standardize:
+        train_labels = labels[train_idx]
+        label_mean = train_labels.mean(dim=0)
+        label_std = train_labels.std(dim=0, unbiased=False).clamp_min(1e-6)
+        embeddings = embeddings
+        labels = (labels - label_mean) / label_std
 
     hidden_dims = []
     if args.hidden_dim and args.num_layers > 0:
@@ -206,8 +216,8 @@ def main() -> None:
         num_outputs=len(PARAMETER_NAMES),
         hidden_dims=hidden_dims,
         dropout=args.dropout,
-        feature_mean=mean,
-        feature_std=std,
+        feature_mean=feat_mean,
+        feature_std=feat_std,
     )
 
     device = torch.device(args.device if torch.cuda.is_available() else "cpu")
@@ -252,8 +262,10 @@ def main() -> None:
                     "hidden_dim": args.hidden_dim,
                     "num_layers": args.num_layers,
                     "dropout": args.dropout,
-                    "feature_mean": mean.tolist(),
-                    "feature_std": std.tolist(),
+                    "feature_mean": feat_mean.tolist(),
+                    "feature_std": feat_std.tolist(),
+                    "label_mean": label_mean.tolist(),
+                    "label_std": label_std.tolist(),
                     "train_frac": args.train_frac,
                     "val_frac": args.val_frac,
                 },

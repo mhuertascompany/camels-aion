@@ -90,4 +90,5 @@ python scripts/train_parameter_head.py \
   --lr ${LR:-3e-4} \
   --device ${HEAD_DEVICE:-cuda} \
   --train-frac ${TRAIN_FRAC:-0.7} \
-  --val-frac ${VAL_FRAC:-0.15}
+  --val-frac ${VAL_FRAC:-0.15} \
+  --label-standardize
