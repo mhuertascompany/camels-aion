@@ -24,7 +24,8 @@ PARAMETER_NAMES = ["Omega_m", "sigma8", "A_SN1", "A_SN2", "A_AGN1", "A_AGN2"]
 
 
 def load_embeddings(shard_paths: Iterable[Path]) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    embeddings, labels = [], []
+    embeddings, labels, indices_list = [], [], []
+    offset = 0
     for shard_path in shard_paths:
         payload = torch.load(shard_path, weights_only=False)
         emb = payload["embeddings"].float()
@@ -32,7 +33,16 @@ def load_embeddings(shard_paths: Iterable[Path]) -> tuple[torch.Tensor, torch.Te
             emb = emb.mean(dim=1)
         embeddings.append(emb)
         labels.append(payload["labels"].float())
-    return torch.cat(embeddings, dim=0), torch.cat(labels, dim=0)
+        if "indices" in payload:
+            idx = payload["indices"].long()
+        else:
+            idx = torch.arange(emb.shape[0]) + offset
+        indices_list.append(idx)
+        offset += emb.shape[0]
+    embeddings = torch.cat(embeddings, dim=0)
+    labels = torch.cat(labels, dim=0)
+    indices = torch.cat(indices_list, dim=0) if indices_list else torch.arange(embeddings.shape[0])
+    return embeddings, labels, indices
 
 
 def compute_metrics(pred: torch.Tensor, target: torch.Tensor) -> dict[str, list[float]]:
