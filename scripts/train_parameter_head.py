@@ -18,7 +18,7 @@ from torch import nn
 from torch.utils.data import DataLoader, TensorDataset, Subset
 import umap
 
-from camels_aion.regression_head import RegressionModel
+from camels_aion.regression_head import RegressionModel, TokenPooler
 
 PARAMETER_NAMES = ["Omega_m", "sigma8", "A_SN1", "A_SN2", "A_AGN1", "A_AGN2"]
 
@@ -29,8 +29,6 @@ def load_embeddings(shard_paths: Iterable[Path]) -> tuple[torch.Tensor, torch.Te
     for shard_path in shard_paths:
         payload = torch.load(shard_path, weights_only=False)
         emb = payload["embeddings"].float()
-        if emb.ndim == 3:
-            emb = emb.mean(dim=1)
         embeddings.append(emb)
         labels.append(payload["labels"].float())
         if "indices" in payload:
@@ -83,8 +81,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", type=Path, required=True)
 
     parser.add_argument("--hidden-dim", type=int, default=256, help="Hidden size for the regression head (set to 0 for linear).")
-    parser.add_argument("--num-layers", type=int, default=3, help="Number of hidden layers in the regression head.")
-    parser.add_argument("--dropout", type=float, default=0.5, help="Dropout probability inside the regression head.")
+    parser.add_argument("--num-layers", type=int, default=2, help="Number of hidden layers in the regression head.")
+    parser.add_argument("--dropout", type=float, default=0.2, help="Dropout probability inside the regression head.")
+    parser.add_argument("--pool-type", type=str, choices=["mean", "meanmax", "attention"], default="attention", help="Pooling strategy for token embeddings.")
+    parser.add_argument("--pool-heads", type=int, default=4, help="Number of attention heads when using attention pooling.")
+    parser.add_argument("--pool-dropout", type=float, default=0.1, help="Dropout applied inside the pooling module.")
 
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--batch-size", type=int, default=256)
@@ -195,14 +196,20 @@ def main() -> None:
         manifest = json.load(fh)
     shard_paths = [args.shard_dir / name for name in manifest["shards"]]
 
-    embeddings, labels, indices = load_embeddings(shard_paths)
+    embeddings, labels, _ = load_embeddings(shard_paths)
 
-    train_idx, val_idx, test_idx = split_indices(indices.shape[0], args.train_frac, args.val_frac, args.seed)
-    train_idx, val_idx, test_idx = indices[train_idx], indices[val_idx], indices[test_idx]
+    train_idx, val_idx, test_idx = split_indices(embeddings.shape[0], args.train_frac, args.val_frac, args.seed)
 
-    train_feats = embeddings[train_idx]
-    feat_mean = train_feats.mean(dim=0)
-    feat_std = train_feats.std(dim=0, unbiased=False).clamp_min(1e-6)
+    pool = TokenPooler(
+        pool_type=args.pool_type,
+        embed_dim=embeddings.shape[-1],
+        num_heads=args.pool_heads,
+        dropout=args.pool_dropout,
+    )
+
+    pooled_train = pool(embeddings[train_idx])
+    feat_mean = pooled_train.mean(dim=0)
+    feat_std = pooled_train.std(dim=0, unbiased=False).clamp_min(1e-6)
 
     label_mean = torch.zeros(len(PARAMETER_NAMES))
     label_std = torch.ones(len(PARAMETER_NAMES))
@@ -221,6 +228,10 @@ def main() -> None:
         num_outputs=len(PARAMETER_NAMES),
         hidden_dims=hidden_dims,
         dropout=args.dropout,
+        pool=pool,
+        pool_type=args.pool_type,
+        pool_heads=args.pool_heads,
+        pool_dropout=args.pool_dropout,
         feature_mean=feat_mean,
         feature_std=feat_std,
     )
