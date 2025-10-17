@@ -85,9 +85,9 @@ python scripts/train_parameter_head.py \
   --shard-dir "$EMBED_DIR" \
   --output-dir "$HEAD_OUT" \
   --hidden-dim ${HIDDEN_DIM:-1024} \
-  --epochs ${EPOCHS:-50} \
+  --epochs ${EPOCHS:-100} \
   --batch-size ${HEAD_BATCH_SIZE:-512} \
-  --lr ${LR:-3e-4} \
+  --lr ${LR:-5e-5} \
   --device ${HEAD_DEVICE:-cuda} \
   --train-frac ${TRAIN_FRAC:-0.7} \
   --val-frac ${VAL_FRAC:-0.15}
