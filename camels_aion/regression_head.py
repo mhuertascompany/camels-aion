@@ -1,8 +1,8 @@
-"""Regression head with standardization for AION embeddings."""
+"""Regression head with feature standardization and configurable MLP."""
 
 from __future__ import annotations
 
-from typing import Iterable, Sequence
+from typing import Sequence
 
 import torch
 from torch import nn
@@ -42,12 +42,12 @@ class RegressionModel(nn.Module):
         feature_std: torch.Tensor | None,
     ) -> None:
         if feature_mean is not None:
-            mean = feature_mean.clone().detach().to(self.feature_mean.dtype)
+            mean = feature_mean.detach().to(self.feature_mean.dtype)
             if mean.ndim == 1:
                 mean = mean.unsqueeze(0)
             self.feature_mean.copy_(mean)
         if feature_std is not None:
-            std = feature_std.clone().detach().to(self.feature_std.dtype)
+            std = feature_std.detach().to(self.feature_std.dtype)
             std = torch.clamp(std, min=1e-6)
             if std.ndim == 1:
                 std = std.unsqueeze(0)
@@ -60,4 +60,3 @@ class RegressionModel(nn.Module):
         if return_features:
             return preds, h
         return preds
-*** End Patch
