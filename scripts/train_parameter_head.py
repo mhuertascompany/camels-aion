@@ -74,6 +74,57 @@ def evaluate(
     return metrics, predictions, target, feats
 
 
+def _module_device(module: torch.nn.Module) -> torch.device:
+    params = list(module.parameters())
+    if params:
+        return params[0].device
+    buffers = list(module.buffers())
+    if buffers:
+        return buffers[0].device
+    return torch.device("cpu")
+
+
+def compute_feature_stats(
+    pool: torch.nn.Module,
+    embeddings: torch.Tensor,
+    indices: torch.Tensor,
+    chunk_size: int = 256,
+    device: torch.device | str | None = None,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Compute mean/std of pooled features without materialising the full train split."""
+    if indices.numel() == 0:
+        raise ValueError("Cannot compute feature statistics with an empty index set.")
+
+    device = torch.device(device) if device is not None else _module_device(pool)
+    original_device = _module_device(pool)
+    was_training = pool.training
+    pool = pool.to(device)
+    pool.eval()
+
+    running_sum = torch.zeros(pool.output_dim, device=device)
+    running_sq_sum = torch.zeros_like(running_sum)
+    count = 0
+
+    with torch.no_grad():
+        for start in range(0, indices.numel(), chunk_size):
+            batch_indices = indices[start : start + chunk_size]
+            batch = embeddings[batch_indices].to(device, non_blocking=True)
+            pooled = pool(batch)
+            running_sum += pooled.sum(dim=0)
+            running_sq_sum += pooled.square().sum(dim=0)
+            count += pooled.size(0)
+
+    mean = running_sum / count
+    variance = running_sq_sum / count - mean.square()
+    std = torch.sqrt(variance.clamp_min(1e-6))
+
+    if was_training:
+        pool.train()
+    pool.to(original_device)
+
+    return mean.cpu(), std.cpu()
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", type=Path, required=True, help="Manifest JSON listing embedding shards.")
@@ -207,9 +258,17 @@ def main() -> None:
         dropout=args.pool_dropout,
     )
 
-    pooled_train = pool(embeddings[train_idx])
-    feat_mean = pooled_train.mean(dim=0)
-    feat_std = pooled_train.std(dim=0, unbiased=False).clamp_min(1e-6)
+    if args.device.lower().startswith("cuda") and torch.cuda.is_available():
+        stats_device = torch.device(args.device)
+    else:
+        stats_device = torch.device("cpu")
+    feat_mean, feat_std = compute_feature_stats(
+        pool,
+        embeddings,
+        train_idx,
+        chunk_size=max(args.batch_size, 256),
+        device=stats_device,
+    )
 
     label_mean = torch.zeros(len(PARAMETER_NAMES))
     label_std = torch.ones(len(PARAMETER_NAMES))
