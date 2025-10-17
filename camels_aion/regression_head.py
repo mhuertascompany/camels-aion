@@ -14,7 +14,7 @@ class RegressionModel(nn.Module):
         input_dim: int,
         num_outputs: int,
         hidden_dims: Sequence[int] | None = None,
-        dropout: float = 0.1,
+        dropout: float = 0.5,
         feature_mean: torch.Tensor | None = None,
         feature_std: torch.Tensor | None = None,
     ) -> None:

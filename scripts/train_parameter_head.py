@@ -83,13 +83,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", type=Path, required=True)
 
     parser.add_argument("--hidden-dim", type=int, default=256, help="Hidden size for the regression head (set to 0 for linear).")
-    parser.add_argument("--num-layers", type=int, default=2, help="Number of hidden layers in the regression head.")
-    parser.add_argument("--dropout", type=float, default=0.2, help="Dropout probability inside the regression head.")
+    parser.add_argument("--num-layers", type=int, default=3, help="Number of hidden layers in the regression head.")
+    parser.add_argument("--dropout", type=float, default=0.5, help="Dropout probability inside the regression head.")
 
     parser.add_argument("--epochs", type=int, default=50)
     parser.add_argument("--batch-size", type=int, default=256)
-    parser.add_argument("--lr", type=float, default=3e-4)
-    parser.add_argument("--weight-decay", type=float, default=1e-4)
+    parser.add_argument("--lr", type=float, default=1e-4)
+    parser.add_argument("--weight-decay", type=float, default=5e-4)
     parser.add_argument("--device", type=str, default="cuda")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--train-frac", type=float, default=0.7)
