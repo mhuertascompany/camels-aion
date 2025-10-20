@@ -85,7 +85,7 @@ python scripts/train_omega_head.py \
   --shard-dir "$EMBED_DIR" \
   --output-dir "$HEAD_OUT" \
   --hidden-dim ${HIDDEN_DIM:-256} \
-  --epochs ${EPOCHS:-100} \
+  --epochs ${EPOCHS:-20} \
   --batch-size ${HEAD_BATCH_SIZE:-64} \
   --lr ${LR:-4e-3} \
   --device ${HEAD_DEVICE:-cuda} \
