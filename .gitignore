@@ -2,3 +2,4 @@ outputs/test_predictions.csv
 outputs/IllustrisTNG_LH_z0p00_manifest.json
 outputs/umap_parameters.png
 outputs/test_predictions_20251015_154546.csv
+outputs/regression_test.png
