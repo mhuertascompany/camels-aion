@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Train a regression head on AION embeddings to predict CAMELS parameters."""
+"""Train a regression head on AION embeddings to predict Omega_m only."""
 
 from __future__ import annotations
 
@@ -7,7 +7,6 @@ import argparse
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Iterable
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -15,114 +14,15 @@ import pandas as pd
 import seaborn as sns
 import torch
 from torch import nn
-from torch.utils.data import DataLoader, TensorDataset, Subset
+from torch.utils.data import TensorDataset
 import umap
 
 from camels_aion.regression_head import RegressionModel, TokenPooler
+from train_parameter_head import load_embeddings, split_indices, make_loaders, compute_feature_stats, evaluate
 
-PARAMETER_NAMES = ["Omega_m", "sigma8", "A_SN1", "A_SN2", "A_AGN1", "A_AGN2"]
-
-
-def load_embeddings(shard_paths: Iterable[Path]) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    embeddings, labels, indices_list = [], [], []
-    offset = 0
-    for shard_path in shard_paths:
-        payload = torch.load(shard_path, weights_only=False)
-        emb = payload["embeddings"].float()
-        embeddings.append(emb)
-        labels.append(payload["labels"].float())
-        if "indices" in payload:
-            idx = payload["indices"].long()
-        else:
-            idx = torch.arange(emb.shape[0]) + offset
-        indices_list.append(idx)
-        offset += emb.shape[0]
-    embeddings = torch.cat(embeddings, dim=0)
-    labels = torch.cat(labels, dim=0)
-    indices = torch.cat(indices_list, dim=0) if indices_list else torch.arange(embeddings.shape[0])
-    return embeddings, labels, indices
-
-
-def compute_metrics(pred: torch.Tensor, target: torch.Tensor) -> dict[str, list[float]]:
-    mse = torch.mean((pred - target) ** 2, dim=0)
-    mae = torch.mean(torch.abs(pred - target), dim=0)
-    return {
-        "mse": [float(value) for value in mse],
-        "mae": [float(value) for value in mae],
-    }
-
-
-def evaluate(
-    model: RegressionModel,
-    loader: DataLoader,
-    device: torch.device,
-) -> tuple[dict[str, list[float]], torch.Tensor, torch.Tensor, torch.Tensor]:
-    model.eval()
-    preds, targets, features = [], [], []
-    with torch.no_grad():
-        for batch_embeddings, batch_labels in loader:
-            batch_embeddings = batch_embeddings.to(device)
-            batch_labels = batch_labels.to(device)
-            outputs, feats = model(batch_embeddings, return_features=True)
-            preds.append(outputs.cpu())
-            targets.append(batch_labels.cpu())
-            features.append(feats.cpu())
-    predictions = torch.cat(preds, dim=0)
-    target = torch.cat(targets, dim=0)
-    feats = torch.cat(features, dim=0)
-    metrics = compute_metrics(predictions, target)
-    return metrics, predictions, target, feats
-
-
-def _module_device(module: torch.nn.Module) -> torch.device:
-    params = list(module.parameters())
-    if params:
-        return params[0].device
-    buffers = list(module.buffers())
-    if buffers:
-        return buffers[0].device
-    return torch.device("cpu")
-
-
-def compute_feature_stats(
-    pool: torch.nn.Module,
-    embeddings: torch.Tensor,
-    indices: torch.Tensor,
-    chunk_size: int = 256,
-    device: torch.device | str | None = None,
-) -> tuple[torch.Tensor, torch.Tensor]:
-    """Compute mean/std of pooled features without materialising the full train split."""
-    if indices.numel() == 0:
-        raise ValueError("Cannot compute feature statistics with an empty index set.")
-
-    device = torch.device(device) if device is not None else _module_device(pool)
-    original_device = _module_device(pool)
-    was_training = pool.training
-    pool = pool.to(device)
-    pool.eval()
-
-    running_sum = torch.zeros(pool.output_dim, device=device)
-    running_sq_sum = torch.zeros_like(running_sum)
-    count = 0
-
-    with torch.no_grad():
-        for start in range(0, indices.numel(), chunk_size):
-            batch_indices = indices[start : start + chunk_size]
-            batch = embeddings[batch_indices].to(device, non_blocking=True)
-            pooled = pool(batch)
-            running_sum += pooled.sum(dim=0)
-            running_sq_sum += pooled.square().sum(dim=0)
-            count += pooled.size(0)
-
-    mean = running_sum / count
-    variance = running_sq_sum / count - mean.square()
-    std = torch.sqrt(variance.clamp_min(1e-6))
-
-    if was_training:
-        pool.train()
-    pool.to(original_device)
-
-    return mean.cpu(), std.cpu()
+PARAMETER_NAME = "Omega_m"
+PARAMETER_INDEX = 0
+PARAMETER_NAMES = [PARAMETER_NAME]
 
 
 def parse_args() -> argparse.Namespace:
@@ -150,43 +50,11 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def split_indices(num_samples: int, train_frac: float, val_frac: float, seed: int):
-    g = torch.Generator()
-    g.manual_seed(seed)
-    perm = torch.randperm(num_samples, generator=g)
-    train_end = int(train_frac * num_samples)
-    val_end = train_end + int(val_frac * num_samples)
-    return perm[:train_end], perm[train_end:val_end], perm[val_end:]
-
-
-def make_loaders(dataset: TensorDataset, train_idx, val_idx, test_idx, batch_size: int):
-    train_loader = DataLoader(
-        Subset(dataset, train_idx.tolist()),
-        batch_size=batch_size,
-        shuffle=True,
-        drop_last=False,
-    )
-    val_loader = DataLoader(
-        Subset(dataset, val_idx.tolist()),
-        batch_size=batch_size,
-        shuffle=False,
-        drop_last=False,
-    )
-    test_loader = DataLoader(
-        Subset(dataset, test_idx.tolist()),
-        batch_size=batch_size,
-        shuffle=False,
-        drop_last=False,
-    )
-    return train_loader, val_loader, test_loader
-
-
 def save_predictions(output_dir: Path, preds: torch.Tensor, targets: torch.Tensor, suffix: str):
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     df = pd.DataFrame(
         torch.cat([targets, preds], dim=1).numpy(),
-        columns=[f"target_{name}" for name in PARAMETER_NAMES]
-        + [f"pred_{name}" for name in PARAMETER_NAMES],
+        columns=[f"target_{PARAMETER_NAME}", f"pred_{PARAMETER_NAME}"],
     )
     csv_path = output_dir / f"{suffix}_{timestamp}.csv"
     df.to_csv(csv_path, index=False)
@@ -197,26 +65,23 @@ def save_predictions(output_dir: Path, preds: torch.Tensor, targets: torch.Tenso
 def plot_regression(output_dir: Path, preds: torch.Tensor, targets: torch.Tensor, suffix: str):
     df = pd.DataFrame(
         torch.cat([targets, preds], dim=1).numpy(),
-        columns=[f"target_{name}" for name in PARAMETER_NAMES]
-        + [f"pred_{name}" for name in PARAMETER_NAMES],
+        columns=[f"target_{PARAMETER_NAME}", f"pred_{PARAMETER_NAME}"],
     )
-    fig, axes = plt.subplots(2, 3, figsize=(18, 10))
-    axes = axes.flatten()
-    for ax, name in zip(axes, PARAMETER_NAMES):
-        sns.scatterplot(
-            data=df,
-            x=f"target_{name}",
-            y=f"pred_{name}",
-            ax=ax,
-            s=15,
-            alpha=0.6,
-        )
-        min_val = df[[f"target_{name}", f"pred_{name}"]].min().min()
-        max_val = df[[f"target_{name}", f"pred_{name}"]].max().max()
-        ax.plot([min_val, max_val], [min_val, max_val], "--", color="black")
-        ax.set_title(name)
-        ax.set_xlabel("Target")
-        ax.set_ylabel("Prediction")
+    fig, ax = plt.subplots(figsize=(6, 6))
+    sns.scatterplot(
+        data=df,
+        x=f"target_{PARAMETER_NAME}",
+        y=f"pred_{PARAMETER_NAME}",
+        ax=ax,
+        s=15,
+        alpha=0.6,
+    )
+    min_val = df.min().min()
+    max_val = df.max().max()
+    ax.plot([min_val, max_val], [min_val, max_val], "--", color="black")
+    ax.set_title(PARAMETER_NAME)
+    ax.set_xlabel("Target")
+    ax.set_ylabel("Prediction")
     plt.tight_layout()
     plt.savefig(output_dir / f"regression_{suffix}.png", dpi=200)
     plt.close(fig)
@@ -225,14 +90,19 @@ def plot_regression(output_dir: Path, preds: torch.Tensor, targets: torch.Tensor
 def plot_umap(output_dir: Path, features: torch.Tensor, targets: torch.Tensor, suffix: str):
     reducer = umap.UMAP(n_neighbors=30, min_dist=0.2, metric="cosine", random_state=42)
     embedding_2d = reducer.fit_transform(features.numpy())
-    fig, axes = plt.subplots(2, 3, figsize=(18, 10))
-    axes = axes.flatten()
-    for ax, name, idx in zip(axes, PARAMETER_NAMES, range(len(PARAMETER_NAMES))):
-        sc = ax.scatter(embedding_2d[:, 0], embedding_2d[:, 1], c=targets[:, idx].numpy(), cmap="viridis", s=10, alpha=0.7)
-        ax.set_title(name)
-        ax.set_xlabel("UMAP-1")
-        ax.set_ylabel("UMAP-2")
-        fig.colorbar(sc, ax=ax, label=name, shrink=0.9)
+    fig, ax = plt.subplots(figsize=(6, 6))
+    sc = ax.scatter(
+        embedding_2d[:, 0],
+        embedding_2d[:, 1],
+        c=targets[:, 0].numpy(),
+        cmap="viridis",
+        s=10,
+        alpha=0.7,
+    )
+    ax.set_title(PARAMETER_NAME)
+    ax.set_xlabel("UMAP-1")
+    ax.set_ylabel("UMAP-2")
+    fig.colorbar(sc, ax=ax, label=PARAMETER_NAME, shrink=0.9)
     plt.tight_layout()
     plt.savefig(output_dir / f"umap_{suffix}.png", dpi=200)
     plt.close(fig)
@@ -248,6 +118,7 @@ def main() -> None:
     shard_paths = [args.shard_dir / name for name in manifest["shards"]]
 
     embeddings, labels, _ = load_embeddings(shard_paths)
+    omega_labels = labels[:, [PARAMETER_INDEX]]
 
     train_idx, val_idx, test_idx = split_indices(embeddings.shape[0], args.train_frac, args.val_frac, args.seed)
 
@@ -273,12 +144,12 @@ def main() -> None:
     label_mean = torch.zeros(len(PARAMETER_NAMES))
     label_std = torch.ones(len(PARAMETER_NAMES))
     if args.label_standardize:
-        train_labels = labels[train_idx]
+        train_labels = omega_labels[train_idx]
         label_mean = train_labels.mean(dim=0)
         label_std = train_labels.std(dim=0, unbiased=False).clamp_min(1e-6)
-        labels = (labels - label_mean) / label_std
+        omega_labels = (omega_labels - label_mean) / label_std
 
-    hidden_dims = []
+    hidden_dims: list[int] = []
     if args.hidden_dim and args.num_layers > 0:
         hidden_dims = [args.hidden_dim] * args.num_layers
 
@@ -298,8 +169,10 @@ def main() -> None:
     device = torch.device(args.device if torch.cuda.is_available() else "cpu")
     model = model.to(device)
 
-    dataset = TensorDataset(embeddings, labels)
-    train_loader, val_loader, test_loader = make_loaders(dataset, train_idx, val_idx, test_idx, args.batch_size)
+    dataset = TensorDataset(embeddings, omega_labels)
+    train_loader, val_loader, test_loader = make_loaders(
+        dataset, train_idx, val_idx, test_idx, args.batch_size
+    )
 
     criterion = nn.MSELoss()
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
@@ -342,6 +215,7 @@ def main() -> None:
                     "label_std": label_std.tolist(),
                     "train_frac": args.train_frac,
                     "val_frac": args.val_frac,
+                    "parameter": PARAMETER_NAME,
                 },
             }
 
@@ -361,7 +235,13 @@ def main() -> None:
     plot_umap(args.output_dir, features, targets, "test")
 
     npz_path = args.output_dir / "test_features_latest.npz"
-    np.savez(npz_path, features=features.numpy(), targets=targets.numpy(), predictions=preds.numpy(), indices=test_idx.numpy())
+    np.savez(
+        npz_path,
+        features=features.numpy(),
+        targets=targets.numpy(),
+        predictions=preds.numpy(),
+        indices=test_idx.numpy(),
+    )
     print(f"Saved features to {npz_path}")
 
 

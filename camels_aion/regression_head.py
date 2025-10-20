@@ -14,7 +14,7 @@ class TokenPooler(nn.Module):
         pool_type: str,
         embed_dim: int,
         num_heads: int = 4,
-        dropout: float = 0.1,
+        dropout: float = 0.5,
     ) -> None:
         super().__init__()
         pool_type = pool_type.lower()
@@ -83,7 +83,7 @@ class RegressionModel(nn.Module):
         for hidden_dim in hidden_dims:
             layers.append(nn.Linear(prev_dim, hidden_dim))
             layers.append(nn.LayerNorm(hidden_dim))
-            layers.append(nn.GELU())
+            layers.append(nn.Tanh())
             layers.append(nn.Dropout(dropout))
             prev_dim = hidden_dim
         self.backbone = nn.Sequential(*layers)
