@@ -16,6 +16,7 @@ import seaborn as sns
 import torch
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset, Subset
+from torch.optim.lr_scheduler import CosineAnnealingLR, LinearLR, SequentialLR
 import umap
 
 from camels_aion.regression_head import RegressionModel, TokenPooler
@@ -147,6 +148,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--train-frac", type=float, default=0.7)
     parser.add_argument("--val-frac", type=float, default=0.15)
     parser.add_argument("--label-standardize", action="store_true", help="Standardize labels using training set mean/std.")
+    parser.add_argument("--freeze-pool-epochs", type=int, default=0, help="Number of initial epochs to freeze pooling parameters.")
+    parser.add_argument("--scheduler", type=str, choices=["none", "cosine"], default="none", help="Learning rate scheduler to use.")
+    parser.add_argument("--warmup-epochs", type=int, default=5, help="Warmup epochs when using a scheduler.")
     return parser.parse_args()
 
 
@@ -238,6 +242,32 @@ def plot_umap(output_dir: Path, features: torch.Tensor, targets: torch.Tensor, s
     plt.close(fig)
 
 
+def set_requires_grad(module: nn.Module, requires_grad: bool) -> None:
+    for param in module.parameters():
+        param.requires_grad = requires_grad
+
+
+def build_scheduler(
+    optimizer: torch.optim.Optimizer,
+    scheduler_name: str,
+    total_epochs: int,
+    warmup_epochs: int,
+):
+    if scheduler_name == "cosine":
+        warmup_epochs = max(0, min(warmup_epochs, total_epochs))
+        schedules = []
+        milestones = []
+        if warmup_epochs > 0:
+            schedules.append(LinearLR(optimizer, start_factor=0.1, total_iters=warmup_epochs))
+            milestones.append(warmup_epochs)
+        cosine_epochs = max(1, total_epochs - warmup_epochs)
+        schedules.append(CosineAnnealingLR(optimizer, T_max=cosine_epochs, eta_min=0.0))
+        if len(schedules) == 1:
+            return schedules[0]
+        return SequentialLR(optimizer, schedules, milestones=milestones)
+    return None
+
+
 def main() -> None:
     args = parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
@@ -303,11 +333,18 @@ def main() -> None:
 
     criterion = nn.MSELoss()
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+    scheduler = build_scheduler(optimizer, args.scheduler, args.epochs, args.warmup_epochs)
+
+    freeze_epochs = max(0, args.freeze_pool_epochs)
+    if freeze_epochs > 0:
+        set_requires_grad(model.pool, False)
 
     best_state = None
     best_val = float("inf")
 
     for epoch in range(1, args.epochs + 1):
+        if freeze_epochs > 0 and epoch == freeze_epochs + 1:
+            set_requires_grad(model.pool, True)
         model.train()
         running_loss = 0.0
         for batch_embeddings, batch_labels in train_loader:
@@ -323,7 +360,8 @@ def main() -> None:
 
         val_metrics, _, _, _ = evaluate(model, val_loader, device)
         val_loss = sum(val_metrics["mse"]) / len(PARAMETER_NAMES)
-        print(f"Epoch {epoch:03d} | train_loss={train_loss:.6f} | val_loss={val_loss:.6f}")
+        current_lr = optimizer.param_groups[0]["lr"]
+        print(f"Epoch {epoch:03d} | lr={current_lr:.6e} | train_loss={train_loss:.6f} | val_loss={val_loss:.6f}")
 
         if val_loss < best_val:
             best_val = val_loss
@@ -342,8 +380,13 @@ def main() -> None:
                     "label_std": label_std.tolist(),
                     "train_frac": args.train_frac,
                     "val_frac": args.val_frac,
+                    "pool_frozen_epochs": freeze_epochs,
+                    "scheduler": args.scheduler,
+                    "warmup_epochs": args.warmup_epochs,
                 },
             }
+        if scheduler is not None:
+            scheduler.step()
 
     if best_state is None:
         raise RuntimeError("Training failed to produce a valid checkpoint.")
