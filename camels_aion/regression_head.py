@@ -111,7 +111,8 @@ class RegressionModel(nn.Module):
             pooled = self.pool(x)
         else:
             pooled = x
-        normed = (pooled - self.feature_mean) / self.feature_std
+        #normed = (pooled - self.feature_mean) / self.feature_std
+        normed = pooled
         h = self.backbone(normed) if len(self.backbone) > 0 else normed
         preds = self.head(h)
         if return_features:
