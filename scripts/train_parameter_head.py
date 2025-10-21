@@ -394,17 +394,37 @@ def main() -> None:
     torch.save(best_state, args.output_dir / "best_model.pt")
     model.load_state_dict(best_state["model_state"])
 
-    test_metrics, preds, targets, features = evaluate(model, test_loader, device)
-    with open(args.output_dir / "metrics.json", "w", encoding="utf-8") as fh:
-        json.dump({"test": test_metrics, "metadata": best_state["metadata"]}, fh, indent=2)
+    test_metrics_std, preds_std, targets_std, features = evaluate(model, test_loader, device)
 
-    csv_path = save_predictions(args.output_dir, preds, targets, "test_predictions")
+    preds_denorm = preds_std
+    targets_denorm = targets_std
+    metrics_payload = {"metadata": best_state["metadata"]}
+
+    if args.label_standardize:
+        preds_denorm = preds_std * label_std + label_mean
+        targets_denorm = targets_std * label_std + label_mean
+        test_metrics = compute_metrics(preds_denorm, targets_denorm)
+        metrics_payload["test"] = test_metrics
+        metrics_payload["test_standardized"] = test_metrics_std
+    else:
+        metrics_payload["test"] = test_metrics_std
+
+    with open(args.output_dir / "metrics.json", "w", encoding="utf-8") as fh:
+        json.dump(metrics_payload, fh, indent=2)
+
+    csv_path = save_predictions(args.output_dir, preds_denorm, targets_denorm, "test_predictions")
     print(f"Saved predictions to {csv_path}")
-    plot_regression(args.output_dir, preds, targets, "test")
-    plot_umap(args.output_dir, features, targets, "test")
+    plot_regression(args.output_dir, preds_denorm, targets_denorm, "test")
+    plot_umap(args.output_dir, features, targets_denorm, "test")
 
     npz_path = args.output_dir / "test_features_latest.npz"
-    np.savez(npz_path, features=features.numpy(), targets=targets.numpy(), predictions=preds.numpy(), indices=test_idx.numpy())
+    np.savez(
+        npz_path,
+        features=features.numpy(),
+        targets=targets_denorm.numpy(),
+        predictions=preds_denorm.numpy(),
+        indices=test_idx.numpy(),
+    )
     print(f"Saved features to {npz_path}")
 
 
