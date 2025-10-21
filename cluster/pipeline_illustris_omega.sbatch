@@ -87,8 +87,11 @@ python scripts/train_omega_head.py \
   --hidden-dim ${HIDDEN_DIM:-128} \
   --epochs ${EPOCHS:-50} \
   --batch-size ${HEAD_BATCH_SIZE:-64} \
-  --lr ${LR:-3e-3} \
+  --lr ${LR:-5e-5} \
+  --weight-decay ${WD:-1e-3} \
   --device ${HEAD_DEVICE:-cuda} \
   --train-frac ${TRAIN_FRAC:-0.7} \
   --val-frac ${VAL_FRAC:-0.15} \
+  --pool-type mean \
+  --num-layers ${NL:-2} \
   --head-architecture resnet

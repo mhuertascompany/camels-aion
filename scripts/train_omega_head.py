@@ -40,7 +40,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", type=Path, required=True)
 
     parser.add_argument("--hidden-dim", type=int, default=256, help="Hidden size for the regression head (set to 0 for linear).")
-    parser.add_argument("--num-layers", type=int, default=4, help="Number of hidden layers in the regression head.")
+    parser.add_argument("--num-layers", type=int, default=2, help="Number of hidden layers in the regression head.")
     parser.add_argument("--dropout", type=float, default=0.5, help="Dropout probability inside the regression head.")
     parser.add_argument("--head-architecture", type=str, choices=["mlp", "resnet"], default="mlp", help="Backbone architecture used inside the regression head.")
     parser.add_argument("--pool-type", type=str, choices=["mean", "meanmax", "attention"], default="mean", help="Pooling strategy for token embeddings.")
