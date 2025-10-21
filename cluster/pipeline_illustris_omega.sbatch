@@ -84,10 +84,10 @@ python scripts/train_omega_head.py \
   --manifest "$MANIFEST_PATH" \
   --shard-dir "$EMBED_DIR" \
   --output-dir "$HEAD_OUT" \
-  --hidden-dim ${HIDDEN_DIM:-512} \
+  --hidden-dim ${HIDDEN_DIM:-128} \
   --epochs ${EPOCHS:-50} \
   --batch-size ${HEAD_BATCH_SIZE:-64} \
-  --lr ${LR:-4e-3} \
+  --lr ${LR:-3e-3} \
   --device ${HEAD_DEVICE:-cuda} \
   --train-frac ${TRAIN_FRAC:-0.7} \
   --val-frac ${VAL_FRAC:-0.15} \
