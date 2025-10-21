@@ -33,9 +33,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", type=Path, required=True)
 
     parser.add_argument("--hidden-dim", type=int, default=256, help="Hidden size for the regression head (set to 0 for linear).")
-    parser.add_argument("--num-layers", type=int, default=2, help="Number of hidden layers in the regression head.")
+    parser.add_argument("--num-layers", type=int, default=4, help="Number of hidden layers in the regression head.")
     parser.add_argument("--dropout", type=float, default=0.5, help="Dropout probability inside the regression head.")
-    parser.add_argument("--pool-type", type=str, choices=["mean", "meanmax", "attention"], default="mean", help="Pooling strategy for token embeddings.")
+    parser.add_argument("--pool-type", type=str, choices=["mean", "meanmax", "attention"], default="meanmax", help="Pooling strategy for token embeddings.")
     parser.add_argument("--pool-heads", type=int, default=4, help="Number of attention heads when using attention pooling.")
     parser.add_argument("--pool-dropout", type=float, default=0.1, help="Dropout applied inside the pooling module.")
 
@@ -47,7 +47,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--train-frac", type=float, default=0.7)
     parser.add_argument("--val-frac", type=float, default=0.15)
-    parser.add_argument("--label-standardize", action="store_true", help="Standardize labels using training set mean/std.")
+    #parser.add_argument("--label-standardize", action="store_true", help="Standardize labels using training set mean/std.")
     parser.add_argument("--freeze-pool-epochs", type=int, default=10, help="Number of initial epochs to freeze pooling parameters.")
     parser.add_argument("--scheduler", type=str, choices=["none", "cosine"], default="cosine", help="Learning rate scheduler to use.")
     parser.add_argument("--warmup-epochs", type=int, default=5, help="Warmup epochs when using a scheduler.")
