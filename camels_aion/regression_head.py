@@ -83,7 +83,7 @@ class RegressionModel(nn.Module):
         for hidden_dim in hidden_dims:
             layers.append(nn.Linear(prev_dim, hidden_dim))
             layers.append(nn.ReLU())
-            layers.append(nn.Linear(hidden_dim,hidden_dim))
+            layers.append(nn.Linear(hidden_dim,hidden_dim/2))
             layers.append(nn.ReLU())
             layers.append(nn.Dropout(dropout))
             prev_dim = hidden_dim
