@@ -84,7 +84,7 @@ python scripts/train_omega_head.py \
   --manifest "$MANIFEST_PATH" \
   --shard-dir "$EMBED_DIR" \
   --output-dir "$HEAD_OUT" \
-  --hidden-dim ${HIDDEN_DIM:-256} \
+  --hidden-dim ${HIDDEN_DIM:-512} \
   --epochs ${EPOCHS:-50} \
   --batch-size ${HEAD_BATCH_SIZE:-64} \
   --lr ${LR:-4e-3} \
