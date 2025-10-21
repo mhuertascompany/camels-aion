@@ -135,6 +135,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--hidden-dim", type=int, default=256, help="Hidden size for the regression head (set to 0 for linear).")
     parser.add_argument("--num-layers", type=int, default=2, help="Number of hidden layers in the regression head.")
     parser.add_argument("--dropout", type=float, default=0.5, help="Dropout probability inside the regression head.")
+    parser.add_argument("--head-architecture", type=str, choices=["mlp", "resnet"], default="mlp", help="Backbone architecture used inside the regression head.")
     parser.add_argument("--pool-type", type=str, choices=["mean", "meanmax", "attention"], default="attention", help="Pooling strategy for token embeddings.")
     parser.add_argument("--pool-heads", type=int, default=4, help="Number of attention heads when using attention pooling.")
     parser.add_argument("--pool-dropout", type=float, default=0.1, help="Dropout applied inside the pooling module.")
@@ -323,6 +324,7 @@ def main() -> None:
         pool_dropout=args.pool_dropout,
         feature_mean=feat_mean,
         feature_std=feat_std,
+        architecture=args.head_architecture,
     )
 
     device = torch.device(args.device if torch.cuda.is_available() else "cpu")
@@ -383,6 +385,7 @@ def main() -> None:
                     "pool_frozen_epochs": freeze_epochs,
                     "scheduler": args.scheduler,
                     "warmup_epochs": args.warmup_epochs,
+                    "head_architecture": args.head_architecture,
                 },
             }
         if scheduler is not None:

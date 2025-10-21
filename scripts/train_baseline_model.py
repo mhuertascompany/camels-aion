@@ -28,7 +28,7 @@ PARAMETER_NAMES = ["Omega_m", "sigma8", "A_SN1", "A_SN2", "A_AGN1", "A_AGN2"]
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--model", choices=["cnn", "vit"], default="cnn")
+    parser.add_argument("--model", choices=["cnn", "resnet", "resnet18", "resnet34", "vit"], default="cnn")
     parser.add_argument("--base-path", type=Path, required=True)
     parser.add_argument("--suite", type=str, default="IllustrisTNG")
     parser.add_argument("--set", dest="set_name", type=str, default="LH")

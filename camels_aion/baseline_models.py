@@ -74,10 +74,48 @@ class ViTBaseline(nn.Module):
         return preds
 
 
+class ResNetBaseline(nn.Module):
+    """ResNet backbone adapted for CAMELS regression."""
+
+    def __init__(self, in_channels: int, num_outputs: int, arch: str = "resnet18") -> None:
+        super().__init__()
+        if not hasattr(models, arch):
+            raise ValueError(f"Unsupported ResNet architecture '{arch}'")
+        backbone = getattr(models, arch)(weights=None)
+        conv1 = backbone.conv1
+        backbone.conv1 = nn.Conv2d(
+            in_channels,
+            conv1.out_channels,
+            kernel_size=conv1.kernel_size,
+            stride=conv1.stride,
+            padding=conv1.padding,
+            bias=conv1.bias is not None,
+        )
+        nn.init.kaiming_normal_(backbone.conv1.weight, mode="fan_out", nonlinearity="relu")
+        if conv1.bias is not None:
+            nn.init.zeros_(backbone.conv1.bias)
+
+        in_features = backbone.fc.in_features
+        backbone.fc = nn.Identity()
+        self.backbone = backbone
+        self.head = nn.Linear(in_features, num_outputs)
+
+    def forward(self, x: torch.Tensor, return_features: bool = False):
+        feats = self.backbone(x)
+        preds = self.head(feats)
+        if return_features:
+            return preds, feats
+        return preds
+
+
 def build_model(model_type: str, in_channels: int, num_outputs: int) -> nn.Module:
     model_type = model_type.lower()
     if model_type == "cnn":
         return CNNBaseline(in_channels, num_outputs)
+    if model_type in {"resnet", "resnet18"}:
+        return ResNetBaseline(in_channels, num_outputs, arch="resnet18")
+    if model_type == "resnet34":
+        return ResNetBaseline(in_channels, num_outputs, arch="resnet34")
     if model_type == "vit":
         return ViTBaseline(in_channels, num_outputs)
     raise ValueError(f"Unknown model type '{model_type}'")

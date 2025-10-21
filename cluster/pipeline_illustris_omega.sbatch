@@ -91,4 +91,4 @@ python scripts/train_omega_head.py \
   --device ${HEAD_DEVICE:-cuda} \
   --train-frac ${TRAIN_FRAC:-0.7} \
   --val-frac ${VAL_FRAC:-0.15} \
-  --label-standardize
+  --head-architecture resnet

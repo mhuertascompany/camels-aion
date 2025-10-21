@@ -42,6 +42,7 @@ def main() -> None:
     hidden_dim = metadata.get("hidden_dim")
     num_layers = metadata.get("num_layers", 0)
     dropout = metadata.get("dropout", 0.1)
+    architecture = metadata.get("head_architecture", "mlp")
     mean = torch.tensor(metadata.get("feature_mean", [0.0] * embeddings.shape[-1]), dtype=torch.float32)
     std = torch.tensor(metadata.get("feature_std", [1.0] * embeddings.shape[-1]), dtype=torch.float32)
     std = torch.clamp(std, min=1e-6)
@@ -57,6 +58,7 @@ def main() -> None:
         dropout=dropout,
         feature_mean=mean,
         feature_std=std,
+        architecture=architecture,
     )
     model.load_state_dict(checkpoint["model_state"])
     model = model.to(args.device)

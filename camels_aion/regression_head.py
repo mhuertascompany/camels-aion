@@ -54,6 +54,27 @@ class TokenPooler(nn.Module):
         return self.dropout_layer(pooled)
 
 
+class ResidualBlock(nn.Module):
+    def __init__(self, in_dim: int, out_dim: int, dropout: float) -> None:
+        super().__init__()
+        self.linear = nn.Linear(in_dim, out_dim)
+        self.norm = nn.LayerNorm(out_dim)
+        self.act = nn.GELU()
+        self.dropout = nn.Dropout(dropout)
+        if in_dim == out_dim:
+            self.skip: nn.Module = nn.Identity()
+        else:
+            self.skip = nn.Linear(in_dim, out_dim, bias=False)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        residual = self.skip(x)
+        out = self.linear(x)
+        out = self.norm(out)
+        out = self.act(out)
+        out = self.dropout(out)
+        return residual + out
+
+
 class RegressionModel(nn.Module):
     def __init__(
         self,
@@ -67,6 +88,7 @@ class RegressionModel(nn.Module):
         pool_dropout: float = 0.1,
         feature_mean: torch.Tensor | None = None,
         feature_std: torch.Tensor | None = None,
+        architecture: str = "mlp",
     ) -> None:
         super().__init__()
         hidden_dims = tuple(hidden_dims or [])
@@ -74,19 +96,28 @@ class RegressionModel(nn.Module):
         self.pool = pool if pool is not None else TokenPooler(pool_type, input_dim, pool_heads, pool_dropout)
         feature_dim = self.pool.output_dim
 
+        architecture = architecture.lower()
+        if architecture not in {"mlp", "resnet"}:
+            raise ValueError(f"Unknown head architecture '{architecture}'")
+        self.architecture = architecture
+
         self.register_buffer("feature_mean", torch.zeros(1, feature_dim))
         self.register_buffer("feature_std", torch.ones(1, feature_dim))
         self.set_normalization_stats(feature_mean, feature_std)
 
         layers: list[nn.Module] = []
         prev_dim = feature_dim
-        for hidden_dim in hidden_dims:
-            layers.append(nn.Linear(prev_dim, hidden_dim))
-            layers.append(nn.ReLU())
-            layers.append(nn.Linear(hidden_dim, prev_dim))
-            layers.append(nn.ReLU())
-            layers.append(nn.Dropout(dropout))
-            #prev_dim = hidden_dim
+        if architecture == "mlp":
+            for hidden_dim in hidden_dims:
+                layers.append(nn.Linear(prev_dim, hidden_dim))
+                layers.append(nn.LayerNorm(hidden_dim))
+                layers.append(nn.GELU())
+                layers.append(nn.Dropout(dropout))
+                prev_dim = hidden_dim
+        else:
+            for hidden_dim in hidden_dims:
+                layers.append(ResidualBlock(prev_dim, hidden_dim, dropout))
+                prev_dim = hidden_dim
         self.backbone = nn.Sequential(*layers)
         self.head = nn.Linear(prev_dim, num_outputs)
 

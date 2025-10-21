@@ -197,15 +197,15 @@ python scripts/compare_umap_embeddings.py \
   --output-dir $SCRATCH/camels_aion/plots/umap_compare
 ```
 
-## Baseline CNN/ViT experiments
-Train a baseline model (CNN or ViT) on IllustrisTNG maps:
+## Baseline CNN/ResNet/ViT experiments
+Train a baseline model (e.g. CNN, ResNet18, or ViT) on IllustrisTNG maps:
 ```bash
 python scripts/train_baseline_model.py \
-  --model cnn \
+  --model resnet \
   --base-path /lustre/fsmisc/dataset/CAMELS_Multifield_Dataset/2D_maps/data \
   --suite IllustrisTNG --set LH --redshift 0.0 \
   --normalization-stats $SCRATCH/camels_aion/stats/tng_arcsinh.json \
-  --output-dir $SCRATCH/camels_aion/baselines/IllustrisTNG_LH/cnn
+  --output-dir $SCRATCH/camels_aion/baselines/IllustrisTNG_LH/resnet
 ```
 
 Evaluate the saved head on SIMBA:
