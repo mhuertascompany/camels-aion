@@ -19,7 +19,14 @@ from torch.optim.lr_scheduler import CosineAnnealingLR, LinearLR, SequentialLR
 import umap
 
 from camels_aion.regression_head import RegressionModel, TokenPooler
-from train_parameter_head import load_embeddings, split_indices, make_loaders, compute_feature_stats, evaluate
+from train_parameter_head import (
+    load_embeddings,
+    split_indices,
+    make_loaders,
+    compute_feature_stats,
+    evaluate,
+    compute_metrics,
+)
 
 PARAMETER_NAME = "Omega_m"
 PARAMETER_INDEX = 0
